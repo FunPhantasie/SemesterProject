@@ -20,7 +20,7 @@ class BurgerSolver:
     # Parameters
     L = 2 * np.pi  # Border length
     N = 256  # Number of grid points
-    nu = 0.05  # Viscosity
+    nu = 0.009  # Viscosity
 
 
     dt = 0.01  # Time step
@@ -33,6 +33,11 @@ class BurgerSolver:
     f_hat[1:5] = (np.random.randn(4) + 1j * np.random.randn(4)) * 0.1
     f_hat[-5:-1] = np.conj(f_hat[1:5][::-1])  # ensure real-valued f(x)
     f = np.fft.ifft(f_hat).real
+
+    # Forcing term
+    f = np.cos(x)
+    f_hat = np.fft.fft(f)
+
     k2=k**2
 
     def __init__(self,dimension="1d",step_method="EulerForward"):
@@ -46,7 +51,7 @@ class BurgerSolver:
         self.u2_hat = np.zeros_like(self.u)  # temp
 
     def dgl_eq(self,u_hat, u2_hat, f_hat):
-        return (-1j*self.k *(u2_hat)+f_hat)
+        return (-1j*self.k *(u2_hat/ 2)+f_hat)
 
     def runStep(self,i):
         self.u_hat = self.fourious.forward(self.u)
