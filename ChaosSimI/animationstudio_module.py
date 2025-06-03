@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib as mpl
+import time
 mpl.use('TkAgg')  # or use 'Agg' for non-GUI environments
 
 class AnimatedScatter:
@@ -17,10 +18,10 @@ class AnimatedScatter:
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.title = title
-
+        self.current_time=time.time()
         self.fig, self.ax = plt.subplots()
         self.line, = self.ax.plot([], [], lw=1.5)
-        self.time_text = self.ax.text(0.02, 0.95, '', transform=self.ax.transAxes)
+        self.time_text = self.ax.text(0.02, 0.90, '', transform=self.ax.transAxes)
 
         self._setup_plot()
 
@@ -41,10 +42,14 @@ class AnimatedScatter:
         self.line.set_data(x, y)
         self.ax.relim()  # Recalculate limits
         self.ax.autoscale_view()  # Rescale axes to fit data
-        self.time_text.set_text(f'time = {t:.2f}')
+
+        self.time_text.set_text(f'time = {t:.3f} \n'
+                                f'frame = {1/(time.time()-self.current_time):.0f} ')
+        self.current_time = time.time()
         return self.line, self.time_text
 
     def start(self, interval=100):
+
         self.anim = animation.FuncAnimation(
             self.fig, self._update, init_func=self._init,
             frames=self._frame_gen(),  # Infinite generator
