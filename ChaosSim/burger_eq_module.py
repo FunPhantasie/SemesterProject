@@ -18,12 +18,12 @@ class BurgerSolver:
     """
 
     # Parameters
-    L = 25.0 * np.pi  # Border length
+    L = 25.0   # Border length
     N = 1024 * 32  # Number of grid points
-    nu = 0.001  # Viscosity
+    nu = 0.01  # Viscosity
 
 
-    dt = 0.001  # Time step
+    dt = 0.01  # Time step
     dx = L / N
 
 
@@ -60,17 +60,20 @@ class BurgerSolver:
         self.chi = lambda x: (1.0 - x ** 2.0 / self.l ** 2.0) * np.exp(- 0.5 * x ** 2.0 / self.l ** 2.0)
         self.chihat = lambda k: self.l ** 3.0 * k ** 2.0 * np.exp(- 0.5 * k ** 2.0 * self.l ** 2.0)
         self.lmbda = np.sqrt(self.chihat(self.k))  # Square root of chi_hat for forcing
-
-
+        # mass muss zu den gitter punkten passen kraft mit amplitude eins wenn start 1
+        # änderung nicht aus der zelle bewegen
+        # rauschen correlation erfüllt
+        # MExanischer hut ?MIttelwert????
+        self.t=0
         self.f_hat = np.zeros(self.N, dtype=complex)  # Forcing term in Fourier space
 
 
-    def dgl_eq(self,u_hat):
-        self.u_hat = self.fourious.forward(self.u)
-        self.u_hat_dealised = self.fourious.dealise(self.u_hat, self.N)
+    def dgl_eq(self,u_hat,t):
+
+        self.u_hat_dealised = self.fourious.dealise(u_hat, self.N) #Overwriteing is faster than creating new one
         self.u2 = (self.fourious.inverse(self.u_hat_dealised)) ** 2
         self.u2_hat = self.fourious.forward(self.u2)
-        return (-0.5j*self.k *(u2_hat)+self.strength*f_hat)
+        return (-0.5j*self.k *(self.u2_hat)+self.strength*self.f_hat)
 
     def gen_force(self):
         # Generates the current forcing eta
@@ -84,18 +87,18 @@ class BurgerSolver:
 
     def runStep(self,i):
         self.gen_force()
+        self.u_hat = self.fourious.forward(self.u)
+        self.t+=self.dt
 
 
 
-
-
-        self.u_hat=self.calculus.EulerForward(self.dt,self.u_hat,self.f_hat)*np.exp(-self.nu*self.k2*self.dt)
+        self.u_hat=self.calculus.EulerForward(self.t,self.u_hat,self.dt)*np.exp(-self.nu*self.k2*self.dt)
 
         self.u=self.fourious.inverse(self.u_hat)
-        return self.x,self.u,i*self.dt
+        return self.x,self.u,self.t
 
 
 
 test=BurgerSolver()
-pixar_studio=AnimatedScatter(test.runStep,xlim=(0, 2*np.pi), ylim=(-10, 10))
+pixar_studio=AnimatedScatter(test.runStep,xlim=(0, test.L), ylim=(-10, 10))
 pixar_studio.start()

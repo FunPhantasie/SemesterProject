@@ -16,17 +16,15 @@ class Integrator():
             raise ValueError("Unknown mode")
         self.dgl = dgl_function
 
-    def EulerForward(self, dt,*x):
+    def EulerForward(self,t,y,dt ):
 
-        return x[0]+dt*self.dgl(*x)
-    def EulerBackward(self, dt,*x):
+        return y+dt*self.dgl(y,t)
+    def EulerBackward(self,t,y,dt):
         pass
-    def RK2(self, dt,*x): #Heun
-        u_hat, u2_hat, f_hat=x
-        u_step=self.dgl(u_hat, u2_hat, f_hat)
+    def RK2(self,t,y,dt): #Heun
 
-        return x[0]+0.5*dt*(self.dgl(u_hat, u2_hat, f_hat)+self.dgl(u_hat, u2_hat, f_hat))
-    def RK4(self, x, t):
-        pass
-    def Propagator(self, x, t):
+        y_step=self.dgl(y,t)
+
+        return y+0.5*dt*((y_step)+self.dgl(y_step,t+dt))
+    def RK4(self,t,y,dt):
         pass
