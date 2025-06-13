@@ -1,13 +1,13 @@
 import numpy as np
 
-from ..ChaosSim.integrator_module import Integrator
-from ..ChaosSim.fourier_module import FourierSolver
-from ..ChaosSim.animationstudio_module import AnimatedScatter
+#from ..ChaosSim.integrator_module import Integrator
+#from ..ChaosSim.fourier_module import FourierSolver
+#from ..ChaosSim.animationstudio_module import AnimatedScatter
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.use('TkAgg')  # or use 'Agg' for non-GUI environments
 
-
+import unittest
 
 class PIC_2D_Solver:
     """
@@ -24,7 +24,7 @@ class PIC_2D_Solver:
     Ny = 10   # Number of grid points
     Nz = 10
     #Number per Cell
-    NPpCell=20
+    NPpCell=1
 
 
     # Constants
@@ -49,10 +49,10 @@ class PIC_2D_Solver:
         # Implicit Parameter
         self.theta = 0.5  # Implicitness parameter
         #Total Particles
-        self.Np = self.NPpCell * self.Nz * self.Ny * self.Nz
+        self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
 
         #Constants
-        self.charge = self.omega_p ** 2 / (self.q / self.m) * self.epsilon_0 * self.Lx / self.NP  # particle charge
+        self.charge = self.omega_p ** 2 / (self.q / self.m) * self.epsilon_0 * self.Lx / self.Np  # particle charge
         self.combi = self.c * self.theta * self.dt
 
         # Grid and wavenumbers (Steps dx,dy,dz)
@@ -61,29 +61,30 @@ class PIC_2D_Solver:
         self.z =  np.linspace(0, self.Lz, self.Nz, endpoint=False)
         self.X, self.Y, self.Z= np.meshgrid(self.x, self.y,self.z, indexing='ij') #Meshgrid Discussion about Indexing
 
-        # Fake Particels to Grid (Computational Particles)
-        self.rho = np.zeros([self.Nx*self.Ny*self.Nz])
-        self.E_theta = np.zeros([self.Nx,self.Ny,self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.B = np.zeros([self.Nx,self.Ny,self.Nz])  # Bz (2D)
+        #Grid Fields and Densities
+        self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
+        self.E_theta = np.zeros([3,self.Nx,self.Ny,self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
+        self.B = np.zeros([3,self.Nx,self.Ny,self.Nz])  # Bz (2D)
 
         #Initialize the Particles Global Positions and Velocities
-        self.vp = np.zeros([3, self.NP])
-        self.Fp = np.zeros([3, self.NP])
-        self.Ep = np.zeros([3, self.NP])
-        self.Bp = np.zeros([3, self.NP])
-        self.xp = np.zeros([3, self.NP])
+        self.vp = np.zeros([3, self.Np])
+        self.Fp = np.zeros([3, self.Np])
+        self.Ep = np.zeros([3, self.Np])
+        self.Bp = np.zeros([3, self.Np])
+        self.xp = np.zeros([3, self.Np])
+
         #In Simulation wurde nur in x Ebene Gerechnet
+        """
         self.pos_p = np.random.uniform(0, self.Lx, self.Np)
         self.vstart_p = np.random.normal(0, 1, self.Np)
-
         self.vp[0,:]=self.vstart_p
         self.B[2,...]=1.
-
+        """
 
 
         # Solve Method
-        self.calculus = Integrator(step_method, self.dgl_eq)
-        self.fourious = FourierSolver(dimension)
+        #self.calculus = Integrator(step_method, self.dgl_eq)
+        #self.fourious = FourierSolver(dimension)
 
         # Initial state of the simulation
         self.t = 0.0
@@ -94,23 +95,31 @@ class PIC_2D_Solver:
         self.times = []
 
 
-    def deposit_charge(self,x_p,rho,ShapeFunctionn):
+
+    def deposit_charge(self,x_p,rho,ShapeFunction):
         """8 Volumes"""
         for particle_index in range(self.Np):
             x,y,z=x_p[:,particle_index]
-            ix,iy,iz = int(x/self.dx),int(y/self.dy),int(z/self.dz)
+
+            xn,yn,zn=(x/self.dx),(y/self.dy),(z/self.dz)
+            ix,iy,iz = int(xn),int(yn),int(zn)
             #Arround The World
             #Muss Rho Volumes zuordnen
             for ax in [0,1]:
                 for by in [0,1]:
                     for cz in [0,1]:
-                        grid_point_x = np.mod(ix + ax, self.self.Nx) #Entweder x0 oder x1
-                        grid_point_y = np.mod(iy + by, self.self.Nx)
-                        grid_point_z = np.mod(iz + cz, self.self.Nx)
-                        Vz=(-1)**(ax+by+cz)
-                        VolumeHelper=Vz *(x-grid_point_x)*(y-grid_point_y)*(z-grid_point_z)
-                        VolumeIndex= np.mod((1-ix) + ax, self.self.Nx) , np.mod((1-iy) + by, self.self.Nx) , np.mod((1-iz) + cz, self.self.Nx)
-                        rho[VolumeIndex]+=ShapeFunctionn(VolumeHelper)
+                        grid_point_x = np.mod(ix + ax, self.Nx) #Entweder x0 oder x1
+                        grid_point_y = np.mod(iy + by, self.Ny)
+                        grid_point_z = np.mod(iz + cz, self.Nz)
+                        # Weight based on linear distance (CIC)
+                        wx = 1 - abs(xn - (ix + ax))
+                        wy = 1 - abs(yn - (iy + by))
+                        wz = 1 - abs(zn - (iz + cz))
+                        w = wx * wy * wz
+
+
+
+                        rho[grid_point_x,grid_point_y,grid_point_z]+=ShapeFunction(w)
 
     def solve_fields(self):
         """Compute electric field using Fourier Poisson solver"""
@@ -122,21 +131,23 @@ class PIC_2D_Solver:
         #Field Dimension noch nicht bestimmt Ersten sollten Drei sein .
         for particle_index in range(self.Np):
             x, y, z = x_p[:, particle_index]
-            ix, iy, iz = int(x / self.dx), int(y / self.dy), int(z / self.dz)
+
+            xn, yn, zn = (x / self.dx), (y / self.dy), (z / self.dz)
+            ix, iy, iz = int(xn), int(yn), int(zn)
             # Arround The World
             # Muss Rho Volumes zuordnen
             for ax in [0, 1]:
                 for by in [0, 1]:
                     for cz in [0, 1]:
-                        grid_point_x = np.mod(ix + ax, self.self.Nx)  # Entweder x0 oder x1
-                        grid_point_y = np.mod(iy + by, self.self.Nx)
-                        grid_point_z = np.mod(iz + cz, self.self.Nx)
-                        Vz = (-1) ** (ax + by + cz)
-
-                        VolumeHelper = Vz * (x - grid_point_x) * (y - grid_point_y) * (z - grid_point_z)
-                        VolumeIndex = np.mod((1 - ix) + ax, self.self.Nx), np.mod((1 - iy) + by, self.self.Nx), np.mod(
-                            (1 - iz) + cz, self.self.Nx)
-                        field[:,particle_index] += ShapeFunctionn(fieldp[:,VolumeIndex],VolumeHelper)
+                        grid_point_x = np.mod(ix + ax, self.Nx)  # Entweder x0 oder x1
+                        grid_point_y = np.mod(iy + by, self.Ny)
+                        grid_point_z = np.mod(iz + cz, self.Nz)
+                        # Weight based on linear distance (CIC)
+                        wx = 1 - abs(xn - (ix + ax)) #Kein Modulo macht alles kaputt
+                        wy = 1 - abs(yn - (iy + by))
+                        wz = 1 - abs(zn - (iz + cz))
+                        w = wx * wy * wz
+                        fieldp[:,particle_index] += field[:,grid_point_x,grid_point_y,grid_point_z]*ShapeFunctionn(w)
 
 
     def apply_boundary_conditions(self):
@@ -203,4 +214,5 @@ class PIC_2D_Solver:
         self.xp+=self.xp_iter*self.dt
         #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
         self.t += self.dt
+
 

@@ -1,0 +1,54 @@
+self.dx = self.Lx / self.Nx
+self.dy = self.Ly / self.Ny
+self.dz = self.Lz / self.Nx
+
+self.dt = 0.01 #Check Bedinung
+
+
+# Implicit Parameter
+self.theta = 0.5  # Implicitness parameter
+#Total Particles
+self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
+
+#Constants
+self.charge = self.omega_p ** 2 / (self.q / self.m) * self.epsilon_0 * self.Lx / self.Np  # particle charge
+self.combi = self.c * self.theta * self.dt
+
+# Grid and wavenumbers (Steps dx,dy,dz)
+self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
+self.y = np.linspace(0, self.Ly, self.Ny, endpoint=False)
+self.z =  np.linspace(0, self.Lz, self.Nz, endpoint=False)
+self.X, self.Y, self.Z= np.meshgrid(self.x, self.y,self.z, indexing='ij') #Meshgrid Discussion about Indexing
+
+#Grid Fields and Densities
+self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
+self.E_theta = np.zeros([3,self.Nx,self.Ny,self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
+self.B = np.zeros([3,self.Nx,self.Ny,self.Nz])  # Bz (2D)
+
+#Initialize the Particles Global Positions and Velocities
+self.vp = np.zeros([3, self.Np])
+self.Fp = np.zeros([3, self.Np])
+self.Ep = np.zeros([3, self.Np])
+self.Bp = np.zeros([3, self.Np])
+self.xp = np.zeros([3, self.Np])
+
+#In Simulation wurde nur in x Ebene Gerechnet
+"""
+self.pos_p = np.random.uniform(0, self.Lx, self.Np)
+self.vstart_p = np.random.normal(0, 1, self.Np)
+self.vp[0,:]=self.vstart_p
+self.B[2,...]=1.
+"""
+
+
+# Solve Method
+#self.calculus = Integrator(step_method, self.dgl_eq)
+#self.fourious = FourierSolver(dimension)
+
+# Initial state of the simulation
+self.t = 0.0
+self.N_steps = 1
+
+self.Ekin0 = np.sum(self.vp ** 2) * 0.5
+self.Ekin = []
+self.times = []
