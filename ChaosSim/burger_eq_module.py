@@ -1,7 +1,7 @@
 import numpy as np
 from integrator_module import Integrator
 from fourier_module import FourierSolver
-from animationstudio_module import AnimatedScatter
+from animationstudio_module import Animater
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.use('TkAgg')  # or use 'Agg' for non-GUI environments
@@ -100,5 +100,5 @@ class BurgerSolver:
 
 
 test=BurgerSolver()
-pixar_studio=AnimatedScatter(test.runStep,xlim=(0, test.L), ylim=(-10, 10))
+pixar_studio=Animater(test.runStep,xlim=(0, test.L), ylim=(-10, 10)) #(x, u, k, E, pdf_x, pdf_y, t)
 pixar_studio.start()

@@ -6,6 +6,8 @@ import matplotlib
 # matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 from matplotlib import animation
+import matplotlib as mpl
+mpl.use('TkAgg')  # or use 'Agg' for non-GUI environments
 
 from helper import *
 from burgers import *
