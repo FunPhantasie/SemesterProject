@@ -11,8 +11,91 @@ import unittest
 
 
 class PIC_Solver:
-    def __int__(self):
-       pass
+    # Borders
+    Lx = 25.0  # Border length
+    Ly = 25.0  # box size (fits fastest growing mode of two-stream); space step (normalized to u_d/omega_p)
+    Lz = 25.0
+    # Grid Points alongs Axis
+    Nx = 10  # Number of grid points
+    Ny = 10  # Number of grid points
+    Nz = 10
+    # Number per Cell
+    NPpCell = 1
+
+    # Constants
+    c = 1
+    pi = np.pi
+    q_p = -1.0
+    m_p = 1.0
+    omega_p = 1.  # plasma frequency
+    epsilon_0 = 1.  # convenient normalization
+
+    def __init__(self, dimension="2d", step_method="EulerForward"):
+        super().__init__()
+
+        self.dx = self.Lx / self.Nx
+        self.dy = self.Ly / self.Ny
+        self.dz = self.Lz / self.Nz
+
+        self.dt = 0.01  # Check Bedinung
+
+        # Implicit Parameter
+        self.theta = 0.5  # Implicitness parameter
+        # Total Particles
+        self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
+
+        # Constants
+        self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
+        # self.charge = self.epsilon_0 * self.omega_p**2 * self.Lx**3 / self.Np
+
+        # Grid and wavenumbers (Steps dx,dy,dz)
+        self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
+        self.y = np.linspace(0, self.Ly, self.Ny, endpoint=False)
+        self.z = np.linspace(0, self.Lz, self.Nz, endpoint=False)
+        self.X, self.Y, self.Z = np.meshgrid(self.x, self.y, self.z,
+                                             indexing='ij')  # Meshgrid Discussion about Indexing
+
+        # Grid Fields and Densities
+        self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
+        self.E = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
+        self.B = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Bz (2D)
+        """
+        Using Yee Scheme E and B are Ofset E along the axis of 1/2 and B to the Center Face
+        """
+        # Initialize the Particles Global Positions and Velocities
+        self.vp = np.zeros([3, self.Np])
+        self.Fp = np.zeros([3, self.Np])
+        self.Ep = np.zeros([3, self.Np])
+        self.Bp = np.zeros([3, self.Np])
+        self.xp = np.zeros([3, self.Np])
+
+        """Helper Variabeln nciht imme rneu definiert"""
+        self.J_hat = np.zeros([3, self.Nx, self.Ny, self.Nz])
+        self.rho_hat = np.zeros([self.Nx, self.Ny, self.Nz])
+        self.E_theta_p = np.zeros([3, self.Np])
+        self.xp_iter = np.zeros([3, self.Np])
+        self.vp_iter = np.zeros([3, self.Np])
+
+        # In Simulation wurde nur in x Ebene Gerechnet
+        """
+        self.pos_p = np.random.uniform(0, self.Lx, self.Np)
+        self.vstart_p = np.random.normal(0, 1, self.Np)
+        self.vp[0,:]=self.vstart_p
+        self.B[2,...]=1.
+        """
+
+        # Solve Method
+        # self.calculus = Integrator(step_method, self.dgl_eq)
+        # self.fourious = FourierSolver(dimension)
+
+        # Initial state of the simulation
+        self.t = 0.0
+        self.N_steps = 1
+
+        self.Ekin0 = np.sum(self.vp ** 2) * 0.5
+        self.Ekin = []
+        self.times = []
+
     def deposit_charge(self,x_p,rho,ShapeFunction):
         """8 Volumes"""
         rho*=0
@@ -125,10 +208,10 @@ class PIC_Solver:
         return E_theta+helper-self.combi**2 *(self.laplace_vector(E_theta)+self.gradient(self.divergence(helper)))
 
 
-    def GetETheta(self):
+    def CalcE_Theta(self):
         combi = self.c * self.theta * self.dt
         mu=1
-        rhs=self.E_theta_RHS(self.E,self.B,self.J_hat,self.rho_hat,combi)
+        rhs=self.E_theta_RHS(self.Ep,self.Bp,self.J_hat,self.rho_hat,combi)
         # Flatten the 3D arrays into 1D for matrix operations
         Nx, Ny, Nz = self.Nx, self.Ny, self.Nz
         E_theta_flat = self.E_theta.reshape(3 * Nx * Ny * Nz)
@@ -169,23 +252,27 @@ class PIC_Solver:
         return
     def particle_mover(self,vp_mid,dt):
         return self.xp+dt*vp_mid
+
     def Half_step(self,x_i):
         """Advance one full PIC cycle"""
         af = lambda a: a
         beta = self.q_p * self.dt / (2 * self.m_p * self.c)
 
+        self.interpolate_fields_to_particles(self.E, x_i, self.Ep, af)  # E
+        self.interpolate_fields_to_particles(self.B, x_i, self.Bp, af)  # B
+
+
         self.rho=self.deposit_charge(x_i,self.rho,af) #Check
         self.calcJ_hat(self.Bp,x_i,self.vp,beta) #With updated pos
         self.calcRho_hat(self.J_hat)
 
-        self.GetETheta()
-        self.GetB()
+        self.CalcE_Theta()
 
 
-        self.interpolate_fields_to_particles(self.E_theta,x_i,self.E_theta_p,af)#E
-        self.interpolate_fields_to_particles(self.B, x_i, self.Bp, af)#B
 
-        #Now obtained habe En_theta, Bn
+
+
+
 
         v_hat=self.calc_v_hat(self.vp,beta,self.E_theta_p)
 
@@ -201,12 +288,14 @@ class PIC_Solver:
             self.xp_iter=self.Half_step(self.xp_iter)
 
         self.xp=self.particle_mover(self.vp_iter,self.dt)
+        #Update Fields
         self.E+=2*self.E_theta
         self.B-=self.c*self.c*self.curl(self.E_theta)
         #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
         self.t += self.dt
 
     """Math Operations"""
+
     def laplace_vector(self,A): #[3,..]
         lap_A = np.zeros_like(A)
         dk=[self.dx,self.dy,self.dz]
@@ -230,11 +319,12 @@ class PIC_Solver:
         return U
 
     def dot(self,A, B):
+        """
         U = np.zeros_like(A)
         U[0, ...] = A[0, ...] * B[0, ...]
         U[1, ...] = A[1, ...] * B[1, ...]
         U[2, ...] = A[2, ...] * B[2, ...]
-        """
+
         Or Var:
 
         result = np.sum(a * b, axis=0)  # Shape (self.Np,)
@@ -265,6 +355,7 @@ class PIC_Solver:
                          (rolledy-A[1]) / self.dy + \
                          (rolledz-A[2]) / self.dz
         return div_A
+
     def curl(self,A):
         curl = np.zeros_like(A)  # Initialize curl array with same shape as A
 
@@ -297,181 +388,3 @@ class PIC_Solver:
 
         return curl
 
-
-class Pic_2DCase(PIC_Solver):
-    # Borders
-    Lx = 25.0  # Border length
-    Ly = 25.0  # box size (fits fastest growing mode of two-stream); space step (normalized to u_d/omega_p)
-    Lz = 25.0
-    # Grid Points alongs Axis
-    Nx = 10  # Number of grid points
-    Ny = 10  # Number of grid points
-    Nz = 10
-    # Number per Cell
-    NPpCell = 1
-
-    # Constants
-    c = 1
-    pi = np.pi
-    q_p = -1.0
-    m_p = 1.0
-    omega_p = 1.  # plasma frequency
-    epsilon_0 = 1.  # convenient normalization
-
-    def __init__(self, dimension="2d", step_method="EulerForward"):
-        super().__init__()
-
-        self.dx = self.Lx / self.Nx
-        self.dy = self.Ly / self.Ny
-        self.dz = self.Lz / self.Nz
-
-        self.dt = 0.01  # Check Bedinung
-
-        # Implicit Parameter
-        self.theta = 0.5  # Implicitness parameter
-        # Total Particles
-        self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
-
-        # Constants
-        self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
-        # self.charge = self.epsilon_0 * self.omega_p**2 * self.Lx**3 / self.Np
-
-        # Grid and wavenumbers (Steps dx,dy,dz)
-        self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
-        self.y = np.linspace(0, self.Ly, self.Ny, endpoint=False)
-        self.z = np.linspace(0, self.Lz, self.Nz, endpoint=False)
-        self.X, self.Y, self.Z = np.meshgrid(self.x, self.y, self.z,
-                                             indexing='ij')  # Meshgrid Discussion about Indexing
-
-        # Grid Fields and Densities
-        self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
-        self.E = np.zeros(
-            [3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.B = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Bz (2D)
-        """
-        Using Yee Scheme E and B are Ofset E along the axis of 1/2 and B to the Center Face
-        """
-        # Initialize the Particles Global Positions and Velocities
-        self.vp = np.zeros([3, self.Np])
-        self.Fp = np.zeros([3, self.Np])
-        self.Ep = np.zeros([3, self.Np])
-        self.Bp = np.zeros([3, self.Np])
-        self.xp = np.zeros([3, self.Np])
-
-        """Helper Variabeln nciht imme rneu definiert"""
-        self.J_hat = np.zeros([3, self.Nx, self.Ny, self.Nz])
-        self.rho_hat = np.zeros([self.Nx, self.Ny, self.Nz])
-        self.E_theta = np.zeros(
-            [3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.E_theta_p = np.zeros([3, self.Np])
-        self.xp_iter = np.zeros([3, self.Np])
-        self.vp_iter = np.zeros([3, self.Np])
-
-        # In Simulation wurde nur in x Ebene Gerechnet
-        """
-        self.pos_p = np.random.uniform(0, self.Lx, self.Np)
-        self.vstart_p = np.random.normal(0, 1, self.Np)
-        self.vp[0,:]=self.vstart_p
-        self.B[2,...]=1.
-        """
-
-        # Solve Method
-        # self.calculus = Integrator(step_method, self.dgl_eq)
-        # self.fourious = FourierSolver(dimension)
-
-        # Initial state of the simulation
-        self.t = 0.0
-        self.N_steps = 1
-
-        self.Ekin0 = np.sum(self.vp ** 2) * 0.5
-        self.Ekin = []
-        self.times = []
-
-class Pic_3DCase(PIC_Solver):
-    # Borders
-    Lx = 25.0  # Border length
-    Ly = 25.0  # box size (fits fastest growing mode of two-stream); space step (normalized to u_d/omega_p)
-    Lz = 25.0
-    # Grid Points alongs Axis
-    Nx = 10  # Number of grid points
-    Ny = 10  # Number of grid points
-    Nz = 10
-    # Number per Cell
-    NPpCell = 1
-
-    # Constants
-    c = 1
-    pi = np.pi
-    q_p = -1.0
-    m_p = 1.0
-    omega_p = 1.  # plasma frequency
-    epsilon_0 = 1.  # convenient normalization
-
-    def __init__(self, dimension="2d", step_method="EulerForward"):
-        super().__init__()
-
-        self.dx = self.Lx / self.Nx
-        self.dy = self.Ly / self.Ny
-        self.dz = self.Lz / self.Nz
-
-        self.dt = 0.01  # Check Bedinung
-
-        # Implicit Parameter
-        self.theta = 0.5  # Implicitness parameter
-        # Total Particles
-        self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
-
-        # Constants
-        self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
-        # self.charge = self.epsilon_0 * self.omega_p**2 * self.Lx**3 / self.Np
-
-        # Grid and wavenumbers (Steps dx,dy,dz)
-        self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
-        self.y = np.linspace(0, self.Ly, self.Ny, endpoint=False)
-        self.z = np.linspace(0, self.Lz, self.Nz, endpoint=False)
-        self.X, self.Y, self.Z = np.meshgrid(self.x, self.y, self.z,
-                                             indexing='ij')  # Meshgrid Discussion about Indexing
-
-        # Grid Fields and Densities
-        self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
-        self.E = np.zeros(
-            [3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.B = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Bz (2D)
-        """
-        Using Yee Scheme E and B are Ofset E along the axis of 1/2 and B to the Center Face
-        """
-        # Initialize the Particles Global Positions and Velocities
-        self.vp = np.zeros([3, self.Np])
-        self.Fp = np.zeros([3, self.Np])
-        self.Ep = np.zeros([3, self.Np])
-        self.Bp = np.zeros([3, self.Np])
-        self.xp = np.zeros([3, self.Np])
-
-        """Helper Variabeln nciht imme rneu definiert"""
-        self.J_hat = np.zeros([3, self.Nx, self.Ny, self.Nz])
-        self.rho_hat = np.zeros([self.Nx, self.Ny, self.Nz])
-        self.E_theta = np.zeros(
-            [3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.E_theta_p = np.zeros([3, self.Np])
-        self.xp_iter = np.zeros([3, self.Np])
-        self.vp_iter = np.zeros([3, self.Np])
-
-        # In Simulation wurde nur in x Ebene Gerechnet
-        """
-        self.pos_p = np.random.uniform(0, self.Lx, self.Np)
-        self.vstart_p = np.random.normal(0, 1, self.Np)
-        self.vp[0,:]=self.vstart_p
-        self.B[2,...]=1.
-        """
-
-        # Solve Method
-        # self.calculus = Integrator(step_method, self.dgl_eq)
-        # self.fourious = FourierSolver(dimension)
-
-        # Initial state of the simulation
-        self.t = 0.0
-        self.N_steps = 1
-
-        self.Ekin0 = np.sum(self.vp ** 2) * 0.5
-        self.Ekin = []
-        self.times = []

@@ -1,10 +1,11 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from semi_implicit_particle_sim import Pic_3DCase
+from semi_implicit_particle_sim import PIC_Solver
 import numpy as np
-
+import matplotlib as mpl
+mpl.use('TkAgg')
 # Initialisiere den Solver
-solver = Pic_3DCase()
+solver = PIC_Solver()
 
 # Zufällige Teilchenverteilung
 solver.xp = np.random.rand(3, solver.Np)
