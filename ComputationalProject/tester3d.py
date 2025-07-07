@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from semi_implicit_particle_sim import PIC_Solver
+from sort import PIC3D
 import numpy as np
 import matplotlib as mpl
 mpl.use('TkAgg')
 # Initialisiere den Solver
-solver = PIC_Solver()
+solver = PIC3D()
 
 # Zufällige Teilchenverteilung
 solver.xp = np.random.rand(3, solver.Np)
@@ -21,7 +21,17 @@ solver.vp[1:] = 0
 # Felder setzen
 solver.E[:] = 0
 solver.B[2, :, :, :] = 1.0  # B-Feld in z
+b = np.ones((3, 10, 10, 10))
+#Testing
 
+af = lambda a: a
+beta=0.1/2.
+
+#R_vp = solver.Evolver_R(solver.vp, beta, solver.Bp)
+#solver.calcJ_hat(solver.xp,R_vp,af)
+solver.Half_step(solver.xp,af)
+#solver.step()
+"""
 # Set up Figure
 fig, ax = plt.subplots(figsize=(6, 6))
 sc = ax.scatter(solver.xp[0], solver.xp[1], s=10, c='red')
@@ -44,3 +54,4 @@ def update(frame):
 ani = animation.FuncAnimation(fig, update, frames=100, interval=50, blit=True)
 plt.tight_layout()
 plt.show()
+"""

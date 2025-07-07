@@ -48,7 +48,7 @@ is perpendicular to the simulation direction, and therefore remains constant in 
 #-------------------------------------------------------
 
 nx = 16                        # grid points
-t_b = 0.; t_e = 50; dt = 0.3   # time beginning; time end; time step (normalized to omega_p)
+t_b = 0.; t_e = 50; dt = 0.3   # time beginning; time end; time step (normalized to omega_p) 
 L = 10.26; dx = L/nx;          # box size (fits fastest growing mode of two-stream); space step (normalized to u_d/omega_p)
 x = dx * np.arange(nx)
 

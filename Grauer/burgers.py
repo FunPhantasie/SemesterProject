@@ -46,11 +46,13 @@ class Burgers:
         self.etahat = np.zeros(len(self.k))
         self.eta = np.zeros(len(self.x))
         self.strength = strength
-
+        #Forward BAck Ward Sheme
         self.scheme = self.heun
 
     def time_step(self):
         # performs one time step
+
+        #DIfferent Kind of Force the Convolution this smaller
         self.gen_force()
         self.scheme()
 

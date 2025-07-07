@@ -2,7 +2,8 @@ import matplotlib
 from matplotlib import animation
 from matplotlib import pyplot as plt
 import numpy as np
-
+import matplotlib as mpl
+mpl.use('TkAgg')
 # In this task, we will apply the Boris pusher that we just developed
 # into a PIC simulation.
 # This code is a slightly modified version of last week's code.
