@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from sort import PIC1D
-from explicit_particle_sim import PIC_Explicit
+from sort import PIC_Explicit1D
 import numpy as np
 import matplotlib as mpl
 from tqdm import tqdm
@@ -13,10 +13,14 @@ import win32con
 # Show a yes/no message box
 response = win32api.MessageBox(0, "Neurechnen?", "Simulation", win32con.MB_YESNO | win32con.MB_ICONQUESTION)
 
-
+border=1
+gridpoints=128
+NPpCell=20
+dt=0.1
+t_end=5
 # Initialize solvers
-solver_test = PIC1D()
-solver_ref = PIC_Explicit()
+solver_test = PIC1D(border, gridpoints, NPpCell, dt)
+solver_ref = PIC_Explicit1D(border, gridpoints, NPpCell, dt)
 
 # Create 'rendered' folder if it doesn't exist
 if not os.path.exists('rendered'):
@@ -46,7 +50,7 @@ else:
     print("User clicked No")
 
 # Initialize data arrays
-total_steps = int(5.0 / solver_test.dt)
+total_steps = int(t_end / solver_test.dt)
 
 if data_exists:
     # Load data from files
@@ -216,7 +220,7 @@ def update(frame):
     return sc1_a, sc1_b, sc2_a, sc2_b, text1, text2
 
 anim = animation.FuncAnimation(fig, update, init_func=init, frames=total_steps,
-                              interval=100, blit=True)
+                              interval=300, blit=True)
 
 plt.tight_layout()
 plt.show()

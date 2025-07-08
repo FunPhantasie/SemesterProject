@@ -4,7 +4,7 @@ from helper import MathTools
 
 class PIC_Solver(MathTools):
 
-    def __init__(self, dimension,dt,steps):
+    def __init__(self, dimension,dt,steps,border,Np,gridNumbers):
 
 
         super().__init__(dimension=dimension,steps=steps)
@@ -18,6 +18,10 @@ class PIC_Solver(MathTools):
         self.m_p = 1.0
         self.omega_p = 1.  # plasma frequency
         self.epsilon_0 = 1.  # convenient normalization
+
+        self.Volume=np.prod(border)
+        self.GridVolume=np.prod(gridNumbers)
+        self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
 
 
 
@@ -39,6 +43,9 @@ class PIC_Solver(MathTools):
     def deposit_charge(self, x_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
         rho=self.ShaperParticle(x_p,self.q_p, ShapeFunction)
+        #Copied from Explicit
+        self.rho -= self.Np / self.GridVolume
+        self.rho *= 2 * self.NPpCell * self.charge / self.dx
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
@@ -164,12 +171,12 @@ class PIC_Solver(MathTools):
 
         for i in range(2):
             self.xp_iter=self.Half_step(self.xp_iter,af)
-
+        self.vp=2 *self.vp_iter -self.vp
         self.xp=self.particle_mover(self.vp_iter,self.dt)
         self.xp=self.boundary(self.xp)
         #Update Fields
         self.E+=2*self.E_theta
-        self.B-=self.c*self.c*self.curl(self.E_theta)
+        #self.B-=self.c*self.c*self.curl(self.E_theta)
         #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
         self.t += self.dt
 
