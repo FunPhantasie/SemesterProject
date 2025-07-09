@@ -54,6 +54,7 @@ class PIC_Solver(MathTools):
         return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=True)
 
     def E_theta_RHS(self, E, B, J, rho, combi):
+        #a=self.curl(B) Vor Klammer entfernt
         return E + combi * (self.curl(B) - 4 * self.pi / self.c * J) - combi ** 2 * 4 * self.pi * self.gradient(rho)
 
     def E_theta_LHS(self, E_theta, beta,combi):
@@ -108,6 +109,7 @@ class PIC_Solver(MathTools):
 
     #Denoted as R in LEcture
     def Evolver_R(self,vec,beta,Field):
+        #return vec #Electro static
         gg=vec+beta/self.c *self.cross(vec,Field)+(beta/self.c)**2 *self.dot(vec,Field)*Field
         return gg/(1+(beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
 
@@ -176,7 +178,7 @@ class PIC_Solver(MathTools):
         self.xp=self.boundary(self.xp)
         #Update Fields
         self.E+=2*self.E_theta
-        #self.B-=self.c*self.c*self.curl(self.E_theta)
+        self.B-=self.c*self.c*self.curl(self.E_theta)
         #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
         self.t += self.dt
 
