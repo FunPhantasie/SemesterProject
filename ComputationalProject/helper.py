@@ -110,7 +110,7 @@ class MathTools():
         return grad
 
         # For Vector Fields
-    def gradient1d(self, f):
+    def gradient1d1(self, f):
 
         # Compute shifted arrays using np.roll for finite differences
         grad = np.zeros([3, *f.shape])
@@ -119,6 +119,13 @@ class MathTools():
 
         grad[0] = (rolledx - f) / (2 * self.dx)
 
+        return grad
+
+    def gradient1d(self, f):
+        grad = np.zeros([3, *f.shape])
+        rolled_forward = np.roll(f, -1, axis=0)
+        rolled_backward = np.roll(f, 1, axis=0)
+        grad[0] = (rolled_forward - rolled_backward) / (2 * self.dx)
         return grad
 
          # For Vector Fields
@@ -132,13 +139,19 @@ class MathTools():
                          (rolledy - A[1]) / self.dy + \
                          (rolledz - A[2]) / self.dz
         return div_A
-    def divergence1d(self, A):
+    def divergence1d1(self, A):
 
         div_A = np.zeros_like(A[0])  # At B points (reduced size)
         rolledx = np.roll(A, shift=-1, axis=1)[0]  # Shift along x-axis
 
 
         div_A[:] = (rolledx - A[0]) / self.dx
+        return div_A
+
+    def divergence1d(self, A):
+        div_A = np.zeros_like(A[0])
+        rolled_forward = np.roll(A[0], -1)
+        div_A = (rolled_forward - A[0]) / self.dx
         return div_A
 
     def curl3d(self, A):

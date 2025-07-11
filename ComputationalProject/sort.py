@@ -26,8 +26,7 @@ class PIC3D(PIC_Solver):
 
         super().__init__(dimension=3, dt=dt,steps=(self.dx,self.dy,self.dz))
 
-        # Implicit Parameter
-        self.theta = 0.5  # Implicitness parameter
+
         # Total Particles
         self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
 
@@ -159,8 +158,7 @@ class PIC1D(PIC_Solver):
 
 
 
-        # Implicit Parameter
-        self.theta = 0.5  # Implicitness parameter
+
         # Total Particles
         self.Np = self.NPpCell * self.Nx
 
@@ -391,5 +389,5 @@ def initialize_two_stream1D(Lx, Np,vp,B, amplitude=0.01):
     xp = np.concatenate([xp1, xp2])
     vp_x = np.concatenate([vp1, vp2])
     vp[0, :] = vp_x
-    B[2, ...] = 0
+    B[2, ...] = 1
     return xp, vp,B

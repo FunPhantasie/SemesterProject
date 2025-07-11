@@ -23,7 +23,8 @@ class PIC_Solver(MathTools):
         self.GridVolume=np.prod(gridNumbers)
         self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
 
-
+        # Implicit Parameter
+        self.theta = 0.1# Implicitness parameter
 
         # Initial state of the simulation
         self.t = 0.0
@@ -36,7 +37,8 @@ class PIC_Solver(MathTools):
             self.particle_mover=self.particle_mover1d
         elif self.dimension==3:
             self.particle_mover=self.particle_mover3d
-
+        """TEST CFL Condition"""
+        print(self.epsilon_0)
 
 
 
@@ -44,8 +46,8 @@ class PIC_Solver(MathTools):
         """8 Volumes 3 Dimensional"""
         rho=self.ShaperParticle(x_p,self.q_p, ShapeFunction)
         #Copied from Explicit
-        self.rho -= self.Np / self.GridVolume
-        self.rho *= 2 * self.NPpCell * self.charge / self.dx
+        self.rho += self.Np / self.GridVolume
+        #Np add at
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
