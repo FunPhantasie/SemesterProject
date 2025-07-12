@@ -389,5 +389,5 @@ def initialize_two_stream1D(Lx, Np,vp,B, amplitude=0.01):
     xp = np.concatenate([xp1, xp2])
     vp_x = np.concatenate([vp1, vp2])
     vp[0, :] = vp_x
-    B[2, ...] = 1
+    B[2, ...] = 0
     return xp, vp,B

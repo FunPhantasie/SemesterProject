@@ -24,7 +24,7 @@ class PIC_Solver(MathTools):
         self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
 
         # Implicit Parameter
-        self.theta = 0.1# Implicitness parameter
+        self.theta = 0.5# Implicitness parameter
 
         # Initial state of the simulation
         self.t = 0.0
@@ -44,10 +44,9 @@ class PIC_Solver(MathTools):
 
     def deposit_charge(self, x_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
-        rho=self.ShaperParticle(x_p,self.q_p, ShapeFunction)
-        #Copied from Explicit
-        self.rho += self.Np / self.GridVolume
-        #Np add at
+        rho=self.ShaperParticle(x_p,1, ShapeFunction)
+        rho -= self.Np / self.Nx
+        rho *= 2 * self.NPpCell * self.charge / self.dx
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
@@ -86,9 +85,9 @@ class PIC_Solver(MathTools):
     def CalcE_Theta(self,beta,combi):
 
 
-        rhs = self.E_theta_RHS(self.E, self.B, self.J_hat, self.rho_hat, combi) #TO Vector
+        rhs = -self.E_theta_RHS(self.E, self.B, self.J_hat, self.rho_hat, combi) #TO Vector
 
-        rhs_flat = rhs.ravel()
+
         rhs_flat = rhs.ravel()
 
         A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v, beta,combi))
@@ -115,6 +114,9 @@ class PIC_Solver(MathTools):
         gg=vec+beta/self.c *self.cross(vec,Field)+(beta/self.c)**2 *self.dot(vec,Field)*Field
         return gg/(1+(beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
 
+    def binomial_filter(self,array):
+
+        return 0.25 * np.roll(array, 1) + 0.5 * array + 0.25 * np.roll(array, -1)
 
     def calcJ_hat(self,xp,R_vp,ShapeFunction):
 
@@ -154,10 +156,13 @@ class PIC_Solver(MathTools):
 
         self.calcJ_hat(x_i,R_vp,af)
         self.rho = self.deposit_charge(x_i, af)  # Check
+        self.rho = self.binomial_filter(self.rho)
+
         self.calcRho_hat(self.J_hat) #Get Rho Hat
 
         #MAtrix Implicit Equation Solver
         self.CalcE_Theta(beta,combi)
+        self.E_theta[0] = self.binomial_filter(self.E_theta[0])
         # Grid to Particle
         self.E_theta_p=self.interpolate_fields_to_particles(x_i,self.E_theta, af)  # E
         self.Bp=self.interpolate_fields_to_particles( x_i ,self.B, af)  # B
@@ -179,7 +184,7 @@ class PIC_Solver(MathTools):
         self.xp=self.particle_mover(self.vp_iter,self.dt)
         self.xp=self.boundary(self.xp)
         #Update Fields
-        self.E+=2*self.E_theta
+        self.E= (self.E_theta+(1-self.theta)*self.E)/self.theta
         self.B-=self.c*self.c*self.curl(self.E_theta)
         #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
         self.t += self.dt

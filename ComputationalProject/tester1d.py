@@ -14,10 +14,10 @@ import win32con
 response = win32api.MessageBox(0, "Neurechnen?", "Simulation", win32con.MB_YESNO | win32con.MB_ICONQUESTION)
 
 border=1
-gridpoints=128*2
+gridpoints=128
 NPpCell=20
-dt=0.01
-t_end=5
+dt=0.05
+t_end=3
 # Initialize solvers
 solver_test = PIC1D(border, gridpoints, NPpCell, dt)
 solver_ref = PIC_Explicit1D(border, gridpoints, NPpCell, dt)
@@ -223,7 +223,7 @@ def update(frame):
     return sc1_a, sc1_b, sc2_a, sc2_b, text1, text2
 
 anim = animation.FuncAnimation(fig, update, init_func=init, frames=total_steps,
-                              interval=10, blit=True)
+                              interval=1000, blit=True)
 
 plt.tight_layout()
 plt.show()
