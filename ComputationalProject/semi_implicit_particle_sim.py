@@ -54,20 +54,31 @@ class PIC_Solver(MathTools):
         # Field Dimension noch nicht bestimmt Ersten sollten Drei sein .
         return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=True)
 
+
+
     def E_theta_RHS(self, E, B, J, rho, combi):
         #a=self.curl(B) Vor Klammer entfernt
         return E + combi * (self.curl(B) - 4 * self.pi / self.c * J) - combi ** 2 * 4 * self.pi * self.gradient(rho)
 
-    def E_theta_LHS(self, E_theta, beta,combi):
+    #Must be on Particle Based
+    def Evolver_R(self,vec,beta,Field):
 
+        #return vec #Electro static
+        gg=vec+beta/self.c *self.cross(vec,Field)+(beta/self.c)**2 *self.dot(vec,Field)*Field
+        return gg/(1+(beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
+    def interpolate_particlefield_to_grid(self,x_p,field,ShapeFunction):
+        return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=False)
 
-        a_expanded = np.repeat(self.rho[np.newaxis, ...], 3, axis=0)
-        mu_E_theta = 4 * np.pi * self.theta * self.dt * beta * a_expanded * self.Evolver_R(E_theta, beta, self.B)
+    def E_theta_LHS(self, E_theta,x_p, beta,combi,ShapeFunction):
+
+        E_theta_p=self.interpolate_fields_to_particles(x_p,E_theta,ShapeFunction)
+
+        mu_E_theta = 4 * np.pi * self.theta * self.dt * beta * self.q_p * self.interpolate_particlefield_to_grid(x_p,self.Evolver_R(E_theta_p, beta, self.Bp),ShapeFunction)
 
         return E_theta + mu_E_theta - combi ** 2 * (
                 self.laplace_vector(E_theta) + self.gradient(self.divergence(mu_E_theta)))
 
-    def A_operator(self, v_flat, beta,combi):
+    def A_operator(self, v_flat,x_p, beta,combi,ShapeFunction):
         # Reshape flat vector to [3, Nx, Ny, Nz]
 
         if self.dimension == 3:
@@ -78,19 +89,19 @@ class PIC_Solver(MathTools):
             raise SyntaxError("Wrong Dim"+str(self.dimension))
 
         # Compute A * v using E_theta_LHS
-        Av = self.E_theta_LHS(v, beta,combi)
+        Av = self.E_theta_LHS(v,x_p, beta,combi,ShapeFunction)
         # Flatten result back to 1D
         return Av.ravel()
 
-    def CalcE_Theta(self,beta,combi):
+    def CalcE_Theta(self,x_p, beta,combi,ShapeFunction):
 
 
-        rhs = -self.E_theta_RHS(self.E, self.B, self.J_hat, self.rho_hat, combi) #TO Vector
+        rhs = self.E_theta_RHS(self.E, self.B, self.J_hat, self.rho_hat, combi) #TO Vector
 
 
         rhs_flat = rhs.ravel()
 
-        A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v, beta,combi))
+        A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v, x_p, beta,combi,ShapeFunction))
         E_theta_flat, info = gmres(A, rhs_flat, x0=self.E.ravel(), rtol=1e-6, restart=30)
         if info == 0:
             if self.dimension==3:
@@ -109,10 +120,7 @@ class PIC_Solver(MathTools):
         return np.sum(self.E**2)*0.5
 
     #Denoted as R in LEcture
-    def Evolver_R(self,vec,beta,Field):
-        #return vec #Electro static
-        gg=vec+beta/self.c *self.cross(vec,Field)+(beta/self.c)**2 *self.dot(vec,Field)*Field
-        return gg/(1+(beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
+
 
     def binomial_filter(self,array):
 
@@ -161,7 +169,7 @@ class PIC_Solver(MathTools):
         self.calcRho_hat(self.J_hat) #Get Rho Hat
 
         #MAtrix Implicit Equation Solver
-        self.CalcE_Theta(beta,combi)
+        self.CalcE_Theta(x_i, beta,combi,af)
         self.E_theta[0] = self.binomial_filter(self.E_theta[0])
         # Grid to Particle
         self.E_theta_p=self.interpolate_fields_to_particles(x_i,self.E_theta, af)  # E

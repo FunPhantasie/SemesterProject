@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from sort import PIC1D
-from sort import PIC_Explicit1D
+from explicit_particle_sim import Explicit_PIC_Solver
 import numpy as np
 import matplotlib as mpl
 from tqdm import tqdm
@@ -21,7 +21,7 @@ t_end = 3
 
 # Initialize solvers
 solver_test = PIC1D(border, gridpoints, NPpCell, dt)
-solver_ref = PIC_Explicit1D(border, gridpoints, NPpCell, dt)
+solver_ref = Explicit_PIC_Solver(border, gridpoints, NPpCell, dt)
 
 # Create 'rendered' folder if it doesn't exist
 if not os.path.exists('rendered'):
