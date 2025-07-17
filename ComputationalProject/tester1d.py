@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from sort import PIC1D
-from sort import PIC_Explicit1D
+from explicit_particle_sim import Explicit_PIC_Solver
 import numpy as np
 import matplotlib as mpl
 from tqdm import tqdm
@@ -20,7 +20,7 @@ dt=0.05
 t_end=3
 # Initialize solvers
 solver_test = PIC1D(border, gridpoints, NPpCell, dt)
-solver_ref = PIC_Explicit1D(border, gridpoints, NPpCell, dt)
+solver_ref = Explicit_PIC_Solver(border, gridpoints, NPpCell, dt)
 
 # Create 'rendered' folder if it doesn't exist
 if not os.path.exists('rendered'):
@@ -223,7 +223,7 @@ def update(frame):
     return sc1_a, sc1_b, sc2_a, sc2_b, text1, text2
 
 anim = animation.FuncAnimation(fig, update, init_func=init, frames=total_steps,
-                              interval=1000, blit=True)
+                              interval=100, blit=True)
 
 plt.tight_layout()
 plt.show()

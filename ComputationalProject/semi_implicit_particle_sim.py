@@ -5,7 +5,8 @@ from helper import MathTools
 class PIC_Solver(MathTools):
 
     def __init__(self, dimension,dt,steps,border,Np,gridNumbers):
-
+        # Implicit Parameter
+        self.theta = 0.8  # Implicitness parameter
 
         super().__init__(dimension=dimension,steps=steps)
         self.dimension = dimension
@@ -19,12 +20,12 @@ class PIC_Solver(MathTools):
         self.omega_p = 1.  # plasma frequency
         self.epsilon_0 = 1.  # convenient normalization
 
+        self.beta = self.q_p * self.dt / (2 * self.m_p * self.c)
+        self.combi = self.c * self.theta * self.dt
         self.Volume=np.prod(border)
         self.GridVolume=np.prod(gridNumbers)
         self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
 
-        # Implicit Parameter
-        self.theta = 0.5# Implicitness parameter
 
         # Initial state of the simulation
         self.t = 0.0
@@ -38,15 +39,24 @@ class PIC_Solver(MathTools):
         elif self.dimension==3:
             self.particle_mover=self.particle_mover3d
         """TEST CFL Condition"""
-        print(self.epsilon_0)
 
+    def setEn(self):
+        af = lambda a: a
+        J = np.zeros(self.Nx)
+        for p in range(self.Np):
+            zeta = self.xp[p] / self.dx
+            i = int(zeta)
+            ip1 = (i + 1) % self.Nx
+            diff = zeta - i
+            J[i] += (1 - diff) * self.vp[0, p]
+            J[ip1] += diff * self.vp[0, p]
 
+        #self.E[0] += - 4 * np.pi * self.dt * J
 
     def deposit_charge(self, x_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
-        rho=self.ShaperParticle(x_p,1, ShapeFunction)
-        rho -= self.Np / self.Nx
-        rho *= 2 * self.NPpCell * self.charge / self.dx
+        rho=self.ShaperParticle(x_p,self.q_p, ShapeFunction)
+
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
@@ -56,29 +66,30 @@ class PIC_Solver(MathTools):
 
 
 
-    def E_theta_RHS(self, E, B, J, rho, combi):
-        #a=self.curl(B) Vor Klammer entfernt
-        return E + combi * (self.curl(B) - 4 * self.pi / self.c * J) - combi ** 2 * 4 * self.pi * self.gradient(rho)
+    def matrix_rhs_equation(self, E, B, J_hat, rho_hat):
 
-    #Must be on Particle Based
-    def Evolver_R(self,vec,beta,Field):
+        return E + self.combi * (self.curl(B) - 4 * self.pi / self.c * J_hat) - self.combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
+
+
+    def Evolver_R(self,vec,Field):
 
         #return vec #Electro static
-        gg=vec+beta/self.c *self.cross(vec,Field)+(beta/self.c)**2 *self.dot(vec,Field)*Field
-        return gg/(1+(beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
+        gg=vec+self.beta/self.c *self.cross(vec,Field)+(self.beta/self.c)**2 *self.dot(vec,Field)*Field
+        return gg/(1+(self.beta/self.c)**2*np.sum(np.abs(Field)**2, axis=0))
     def interpolate_particlefield_to_grid(self,x_p,field,ShapeFunction):
         return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=False)
 
-    def E_theta_LHS(self, E_theta,x_p, beta,combi,ShapeFunction):
+    def matrix_lhs_equation(self, E_theta):
 
-        E_theta_p=self.interpolate_fields_to_particles(x_p,E_theta,ShapeFunction)
+        #E_theta_p=self.interpolate_fields_to_particles(x_p,E_theta,ShapeFunction)
+        rho_clipped = np.clip(self.rho_hat, 0.0, None)
+        alpha_E = self.Evolver_R(self.E_theta, self.B)
+        mu_E_theta = - 4 *self.pi*self.theta*self.dt* self.beta*self.q_p * rho_clipped[np.newaxis, ...] * alpha_E
+        return E_theta + mu_E_theta - self.combi ** 2 * (self.laplace_vector(E_theta) + self.gradient(self.divergence(mu_E_theta)))
 
-        mu_E_theta = 4 * np.pi * self.theta * self.dt * beta * self.q_p * self.interpolate_particlefield_to_grid(x_p,self.Evolver_R(E_theta_p, beta, self.Bp),ShapeFunction)
 
-        return E_theta + mu_E_theta - combi ** 2 * (
-                self.laplace_vector(E_theta) + self.gradient(self.divergence(mu_E_theta)))
 
-    def A_operator(self, v_flat,x_p, beta,combi,ShapeFunction):
+    def A_operator(self, v_flat):
         # Reshape flat vector to [3, Nx, Ny, Nz]
 
         if self.dimension == 3:
@@ -89,35 +100,27 @@ class PIC_Solver(MathTools):
             raise SyntaxError("Wrong Dim"+str(self.dimension))
 
         # Compute A * v using E_theta_LHS
-        Av = self.E_theta_LHS(v,x_p, beta,combi,ShapeFunction)
+        Av = self.matrix_lhs_equation(v)
         # Flatten result back to 1D
         return Av.ravel()
 
-    def CalcE_Theta(self,x_p, beta,combi,ShapeFunction):
-
-
-        rhs = self.E_theta_RHS(self.E, self.B, self.J_hat, self.rho_hat, combi) #TO Vector
-
-
+    def solveMatrixEquation(self,rhs,prevEtheta):
         rhs_flat = rhs.ravel()
 
-        A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v, x_p, beta,combi,ShapeFunction))
-        E_theta_flat, info = gmres(A, rhs_flat, x0=self.E.ravel(), rtol=1e-6, restart=30)
+        A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v))
+        E_theta_flat, info = gmres(A, rhs_flat, x0=prevEtheta.ravel(), rtol=1e-6, restart=30)
         if info == 0:
             if self.dimension==3:
-                self.E_theta = E_theta_flat.reshape(3, self.Nx, self.Ny, self.Nz)
+                return E_theta_flat.reshape(3, self.Nx, self.Ny, self.Nz)
             elif self.dimension==1:
-                self.E_theta = E_theta_flat.reshape(3, self.Nx)
+                return  E_theta_flat.reshape(3, self.Nx)
             else:
                 raise SyntaxError("Wrong Dim" + str(self.dimension))
         else:
             raise ValueError("GMRES failed to converge")
 
 
-    def CalcKinEnergery(self):
-        return np.sum(self.vp**2)*0.5
-    def CalcEFieldEnergy(self):
-        return np.sum(self.E**2)*0.5
+
 
     #Denoted as R in LEcture
 
@@ -128,20 +131,21 @@ class PIC_Solver(MathTools):
 
     def calcJ_hat(self,xp,R_vp,ShapeFunction):
 
-        first_sum_vec=self.ShaperParticle(xp, R_vp, ShapeFunction)                  #[3,nx]
-        second_sum=_scalar=self.ShaperParticle(xp, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
+        first_sum_vec=self.q_p*self.ShaperParticle(xp, R_vp, ShapeFunction)                  #[3,nx]
+
+        second_sum=_scalar=self.q_p*self.ShaperParticle(xp, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
 
 
 
-        self.J_hat= first_sum_vec - self.theta*self.dt *self.gradient(second_sum)
+        return first_sum_vec - self.theta*self.dt *self.gradient(second_sum)
 
     def calcRho_hat(self,J_hat):
-        self.rho_hat= self.rho-self.dt*self.theta *self.divergence(J_hat)
+        return self.rho-self.dt*self.theta *self.divergence(J_hat)
 
 
 
-    def calc_v_hat(self,vp,beta,E_theta_p):
-        return vp+beta*E_theta_p
+    def calc_v_hat(self,vp,E_theta_p):
+        return vp+self.beta*E_theta_p
 
     def particle_mover3d(self,vp_mid,dt):
         return self.xp+dt*vp_mid
@@ -153,50 +157,101 @@ class PIC_Solver(MathTools):
             raise NotImplementedError()
         return  np.mod(x, self.Lx)
 
-    def Half_step(self,x_i,af):
+    def Looper(self,x_i,v_i,af):
         """Advance one full PIC cycle"""
 
-        beta = self.q_p * self.dt / (2 * self.m_p * self.c)
-        combi = self.c * self.theta * self.dt
-        R_vp = self.Evolver_R(self.vp, beta, self.Bp)
-        #Gathering Moments of X_I
+        self.rho_iter = self.deposit_charge(x_i, af)  # That works
+
+        #Could Add SMoothing function for Oszilations
+
+        R_vp = self.Evolver_R(self.vp, self.Bp)
+
+        self.J_hat=self.calcJ_hat(x_i,R_vp,af)
 
 
-        self.calcJ_hat(x_i,R_vp,af)
-        self.rho = self.deposit_charge(x_i, af)  # Check
-        self.rho = self.binomial_filter(self.rho)
+        self.rho_hat=self.calcRho_hat(self.J_hat)
+        self.rho_hat = self.binomial_filter(self.rho_hat)
 
-        self.calcRho_hat(self.J_hat) #Get Rho Hat
-
-        #MAtrix Implicit Equation Solver
-        self.CalcE_Theta(x_i, beta,combi,af)
+        # MAtrix
+        rhs = self.matrix_rhs_equation(self.E, self.B, self.J_hat, self.rho_hat)  # TO Vector
+        self.E_theta=self.solveMatrixEquation(rhs,self.E_theta)
         self.E_theta[0] = self.binomial_filter(self.E_theta[0])
+
         # Grid to Particle
-        self.E_theta_p=self.interpolate_fields_to_particles(x_i,self.E_theta, af)  # E
-        self.Bp=self.interpolate_fields_to_particles( x_i ,self.B, af)  # B
-        #Evolve V
-        v_hat=self.calc_v_hat(self.vp,beta,self.E_theta_p)
+        self.E_theta_p = self.interpolate_fields_to_particles(x_i, self.E_theta, af)  # E
+        self.Bp = self.interpolate_fields_to_particles(x_i, self.B, af)  # B
 
-        self.vp_iter=self.Evolver_R(v_hat,beta,self.Bp)
-        x_i=self.particle_mover(self.vp_iter,0.5* self.dt)
+        # Calc Velocity
+        v_hat = self.calc_v_hat(self.vp, self.E_theta_p) #Here its Important that it is vp
 
-        return self.boundary(x_i)
+
+        v_hat=self.Evolver_R(v_hat,self.Bp)
+
+
+        x_i = self.particle_mover(v_hat, 0.5 * self.dt)
+
+        return self.boundary(x_i),v_hat
+
+
+        
+
+        
+        
+
+
+
+
+
+
     def step(self):
         """Advance one full PIC cycle"""
         af = lambda a: a
-        self.xp_iter=self.Half_step(self.xp,af) #Should be Grid
 
-        for i in range(2):
-            self.xp_iter=self.Half_step(self.xp_iter,af)
+
+
+        #Hand Loop
+        self.xp_iter,self.vp_iter=self.Looper(self.xp,self.vp,af)
+        count=0
+        for k in range(5):
+
+            vp_new = self.vp_iter.copy()
+            self.xp_iter, self.vp_iter = self.Looper(self.xp_iter, self.vp_iter, af)
+            if np.linalg.norm((vp_new - self.vp_iter)) < 1e-6:
+                print("Iteration stopped after:" + str(count))
+                break
+
+            count+=1
+
+        ###
+        #End
+        ###
+
+
         self.vp=2 *self.vp_iter -self.vp
+        #self.vp=(self.vp_iter-(1-self.theta)*self.vp)/self.theta #For all Thetas
+
+        ## For Debugging not needed Elsewhere
+        self.rho = self.deposit_charge(self.xp, af)
+        self.E_prev=self.E
+        ##
+
+
         self.xp=self.particle_mover(self.vp_iter,self.dt)
         self.xp=self.boundary(self.xp)
+
         #Update Fields
-        self.E= (self.E_theta+(1-self.theta)*self.E)/self.theta
+
+
+
+        self.E=(self.E_theta-(1-self.theta)*self.E)/self.theta #For all Thetas
+
         self.B-=self.c*self.c*self.curl(self.E_theta)
-        #Könnte auch V_n1 bestimmen aber brauch man nicht. Wird beim nächsten neu Approximiert
+
         self.t += self.dt
 
-
+    def CalcKinEnergery(self):
+        return np.sum(self.vp**2)*0.5
+    def CalcEFieldEnergy(self):
+        return np.sum(self.E**2)*0.5
 
 

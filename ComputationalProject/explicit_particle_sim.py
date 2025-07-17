@@ -83,19 +83,29 @@ class Explicit_PIC_Solver(MathTools):
     def weight_rho(self):
         self.rho *= 0
         self.interpolation_rho_to_grid()
-        self.rho -= self.Np / self.Nx
-        self.rho *= 2 * self.NPpCell * self.charge / self.dx
+        # rho -= self.Np / self.Nx its not than if all moments are the same
+        # rho *= 2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) #Ist kompliziert weil geklaut aber eigentlich nur  2 *omega^2 m/q *epsilon´
+        # print(2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) )
 
     def force(self):
         self.interpolation_to_part(self.Ep, self.E)
         self.interpolation_to_part(self.Bp, self.B)
 
+    def weight_J(self):
+        J = np.zeros(self.Nx)
+        for p in range(self.Np):
+            zeta = self.xp[p] / self.dx
+            i = int(zeta)
+            ip1 = (i + 1) % self.Nx
+            diff = zeta - i
+            J[i] += (1 - diff) * self.vp[0, p]
+            J[ip1] += diff * self.vp[0, p]
+        J *= self.charge / self.dx
+        return J
+
     def calc_E(self):
-        rhohat = np.fft.rfft(self.rho)
-        kx = 2 * np.pi / self.Lx * np.arange(rhohat.size)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            tmp = np.where(kx * kx > 0, rhohat / (1j * kx), 0.0)
-        self.E[0, :] = np.fft.irfft(tmp)
+        J = self.weight_J()
+        self.E[0] += - 4 * np.pi * self.dt * J
 
     def boundary(self):
         self.xp = np.mod(self.xp, self.Lx)

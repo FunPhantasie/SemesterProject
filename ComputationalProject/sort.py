@@ -182,26 +182,21 @@ class PIC1D(PIC_Solver):
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        """Helper Variabeln nciht imme rneu definiert"""
+        """Iteration Variabeln Variabeln nicht imme rneu definiert"""
         self.J_hat = np.zeros([3, self.Nx])
         self.rho_hat = np.zeros([self.Nx])
         self.E_theta=np.zeros([3, self.Nx])
         self.E_theta_p = np.zeros([3, self.Np])
 
 
-        # In Simulation wurde nur in x Ebene Gerechnet
-        """
-        self.pos_p = np.random.uniform(0, self.Lx, self.Np)
-        self.vstart_p = np.random.normal(0, 1, self.Np)
-        self.vp[0,:]=self.vstart_p
-        self.B[2,...]=1.
-        """
 
 
         #self.xp = np.zeros([3, self.Np])
         self.vp = np.zeros([3, self.Np])
         self.xp_iter = np.zeros(self.Np)
         self.vp_iter = np.zeros([3, self.Np])
+        self.rho_iter = np.zeros(self.Nx)
+        self.E_prev = np.zeros([3, self.Nx])
 
         self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np, self.vp, self.B, amplitude=0.01)
         # Solve Method
