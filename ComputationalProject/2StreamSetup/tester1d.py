@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from sort import PIC1D
+
+from twostream import PIC1D
 from explicit_particle_sim import Explicit_PIC_Solver
 import numpy as np
 import matplotlib as mpl

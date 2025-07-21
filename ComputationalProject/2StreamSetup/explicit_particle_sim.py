@@ -1,7 +1,6 @@
 import numpy as np
-from helper import MathTools
-from sort import initialize_two_stream1D
-class Explicit_PIC_Solver(MathTools):
+from twostream import initialize_two_stream1D
+class Explicit_PIC_Solver():
 
     def __init__(self, border=1, gridpoints=128, NPpCell=20, dt=0.1):
         self.Nx = gridpoints
@@ -27,14 +26,15 @@ class Explicit_PIC_Solver(MathTools):
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np, self.vp, self.B, amplitude=0.01)
+        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np, self.vp, self.B)
 
         self.Ekin0 = np.sum(self.vp ** 2) * 0.5
 
     def step(self):
         self.weight_rho()
+        self.weight_J()
         self.calc_E()
-
+        #self.calc_B()
         self.force()
         self.boris(self.dt)
         self.step_x(self.dt)
@@ -51,6 +51,7 @@ class Explicit_PIC_Solver(MathTools):
         v_min = self.vp + a * self.Ep
         v_prime = v_min + self.cross(v_min, t_b)
         v_plus = v_min + self.cross(v_prime, s_b)
+
         self.vp = v_plus + a * self.Ep
 
     def dot(self, A, B):
@@ -83,8 +84,10 @@ class Explicit_PIC_Solver(MathTools):
     def weight_rho(self):
         self.rho *= 0
         self.interpolation_rho_to_grid()
+        self.rho -= self.Np / self.Lx
+        self.rho *= 2 * self.NPpCell * self.charge / self.dx
         # rho -= self.Np / self.Nx its not than if all moments are the same
-        # rho *= 2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) #Ist kompliziert weil geklaut aber eigentlich nur  2 *omega^2 m/q *epsilon´
+        #Ist kompliziert weil geklaut aber eigentlich nur  2 *omega^2 m/q *epsilon´
         # print(2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) )
 
     def force(self):
@@ -92,20 +95,34 @@ class Explicit_PIC_Solver(MathTools):
         self.interpolation_to_part(self.Bp, self.B)
 
     def weight_J(self):
-        J = np.zeros(self.Nx)
+        self.J = np.zeros([3, self.Nx])
         for p in range(self.Np):
             zeta = self.xp[p] / self.dx
-            i = int(zeta)
+            i = int(zeta) % self.Nx
             ip1 = (i + 1) % self.Nx
             diff = zeta - i
-            J[i] += (1 - diff) * self.vp[0, p]
-            J[ip1] += diff * self.vp[0, p]
-        J *= self.charge / self.dx
-        return J
-
+            for d in range(3):
+                self.J[d, i] += (1 - diff) * self.vp[d, p]
+                self.J[d, ip1] += diff * self.vp[d, p]
+        self.J *= self.charge / self.dx
     def calc_E(self):
-        J = self.weight_J()
-        self.E[0] += - 4 * np.pi * self.dt * J
+        rhohat = np.fft.rfft(self.rho)
+        kx = 2 * np.pi / self.Lx * np.arange(rhohat.size)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tmp = np.where(kx * kx > 0, rhohat / (1j * kx), 0.)
+        self.E[0, :] = np.fft.irfft(tmp)
+        # Faraday's law: dE/dt = curl B - J
+        #curl_B = np.zeros_like(self.E)
+        #curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
+        #curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
+        #self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
+
+    def calc_B(self):
+        # dB/dt = - curl E
+        curl_E = np.zeros_like(self.B)
+        curl_E[1, 1:-1] = -(self.E[2, 2:] - self.E[2, :-2]) / (2 * self.dx)
+        curl_E[2, 1:-1] = (self.E[1, 2:] - self.E[1, :-2]) / (2 * self.dx)
+        self.B[:, 1:-1] += self.dt * curl_E[:, 1:-1]
 
     def boundary(self):
         self.xp = np.mod(self.xp, self.Lx)

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
-from sort import PIC1D
+
+from twostream import PIC1D
 from explicit_particle_sim import Explicit_PIC_Solver
 from semi_implicit_particle_sim import PIC_Solver
 import numpy as np
@@ -18,11 +19,11 @@ border = 1
 gridpoints = 128
 NPpCell = 20
 dt = 0.05
-t_end = 0.5
+t_end = 3
 
 # Initialize solvers
 solver_test = PIC1D(border, gridpoints, NPpCell, dt)
-#solver_test.setEn()
+
 solver_ref = Explicit_PIC_Solver(border, gridpoints, NPpCell, dt)
 
 # Create 'rendered' folder if it doesn't exist
@@ -102,7 +103,7 @@ else:
         energy_kin_history_test.append(solver_test.CalcKinEnergery())
         rho_test_history.append(solver_test.rho.copy()+20)
         E_test_history.append(solver_test.E.copy())
-        rho_ref_history.append(solver_ref.rho.copy()-20)
+        rho_ref_history.append(solver_ref.rho.copy()-5080)
         E_ref_history.append(solver_ref.E.copy())
 
     """
@@ -216,11 +217,14 @@ def update_plot(frame):
     grid_indices = np.arange(gridpoints)
     rho_line_test.set_data(grid_indices, rho_test_history[frame])
     E_line_test.set_data(grid_indices, E_test_history[frame][0])
+
     rho_line_ref.set_data(grid_indices, rho_ref_history[frame])
-    print(rho_test_history[frame])
+    E_line_ref.set_data(grid_indices, E_ref_history[frame][0])
+
+    #print(rho_test_history[frame])
     print(rho_ref_history[frame])
 
-    E_line_ref.set_data(grid_indices, E_ref_history[frame][0])
+    #print(E_ref_history[frame])
     text3.set_text(f"time = {t:.2f}")
 
     fig.canvas.draw()

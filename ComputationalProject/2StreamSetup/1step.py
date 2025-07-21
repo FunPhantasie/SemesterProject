@@ -1,5 +1,9 @@
 import matplotlib.pyplot as plt
-from sort import PIC1D
+
+from twostream import PIC1D
+
+
+
 from explicit_particle_sim import Explicit_PIC_Solver
 import numpy as np
 import matplotlib as mpl
@@ -15,7 +19,7 @@ nsteps = 2
 
 # Initialize solvers
 solver_test = PIC1D(border, gridpoints, NPpCell, dt)
-solver_test.setEn()
+
 solver_ref = Explicit_PIC_Solver(border, gridpoints, NPpCell, dt)
 
 
@@ -25,12 +29,15 @@ for step in range(nsteps):
     solver_test.step()
     solver_ref.step()  # for comparison
 
+solver_test.analyze_E_theta_RHS()
+
 # After simulation, get final states
 x1 = solver_test.xp
 v1_x = solver_test.vp[0]
+
 v1_y = solver_test.vp[1]
 v1_z = solver_test.vp[2]
-rho_test = solver_test.rho
+rho_test = solver_test.rho+20
 E_test_x = solver_test.E_prev[0]
 E_test_y = solver_test.E_prev[1]
 E_test_z = solver_test.E_prev[2]
@@ -49,6 +56,7 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 Np = solver_test.Np
 ax1.plot(x1[:Np//2], v1_x[:Np//2], 'o', markersize=0.5, label='Species A')
 ax1.plot(x1[Np//2:], v1_x[Np//2:], 'o', markersize=0.5, label='Species B')
+
 ax1.set_xlim(0, solver_test.Lx)
 ax1.set_ylim(-3, 3)
 ax1.set_title(f"Particles after {nsteps} steps (t = {nsteps*dt})")
@@ -70,7 +78,7 @@ ymin, ymax = ax2.get_ylim()
 abs_max = max(abs(ymin), abs(ymax))
 
 if abs_max < 0.1:
-    ax1.set_ylim(-0.01, 0.01)
+    ax2.set_ylim(-0.1, 0.1)
 ax2.set_title("Charge Density and Electric Field")
 ax2.set_xlabel("Grid index")
 ax2.set_ylabel("Value")

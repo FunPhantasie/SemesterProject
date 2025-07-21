@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from sort import PIC3D
+from twostream import PIC3D
 import numpy as np
 import matplotlib as mpl
 mpl.use('TkAgg')
