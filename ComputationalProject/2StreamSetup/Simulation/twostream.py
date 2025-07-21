@@ -1,72 +1,80 @@
-from semi_implicit_particle_sim import  PIC_Solver
+from .semi_implicit_particle_sim import  PIC_Solver
 import numpy as np
 
-class PIC1D(PIC_Solver):
+"""
+Initnitialisation of the Implicit Probelm of the electromagnetic two streams poblem.
+"""
+
+class twostream1D(PIC_Solver):
     def __init__(self,border=1,gridpoints=128,NPpCell=20,dt=0.1,):
 
-        # Borders
-        self.Lx = border  # Border length
-
-        # Grid Points alongs Axis
+        #Parameter Conditions
+        self.Lx = border  # Plasma Space/Borders
         self.Nx = gridpoints  # Number of grid points
-
-        self.totalN=3*self.Nx
-
-        # Number per Cell
-        self.NPpCell = NPpCell
+        self.totalN=3*self.Nx #Total Number of Gridppoints (3 Could be Wrong)
+        self.NPpCell = NPpCell # Particle per Cell
 
 
 
+        # Resulting Connected Conditions
         self.dx = self.Lx / self.Nx
+        self.Np = self.NPpCell * self.Nx  # Total Particles
 
-
-
-
-
-
-        # Total Particles
-        self.Np = self.NPpCell * self.Nx
-
-
-
-        super().__init__(dimension=1, dt=dt, steps=self.dx,border=(self.Lx,),Np=self.Np,gridNumbers=(self.Nx,) )
-
-        # Grid and wavenumbers (Steps dx,dy,dz)
-        self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
-
+        """
+        All The Fields and Moments
+        """
 
         # Grid Fields and Densities
-        self.rho = np.zeros(self.Nx)
-        self.E = np.zeros([3, self.Nx])  # Ex, Ey Its E but bc only in forward time its used no one cares
-        self.B = np.zeros([3, self.Nx])  # Bz (2D)
-        """
-        Using Yee Scheme E and B are Ofset E along the axis of 1/2 and B to the Center Face
-        """
+        # Only Fields in Scalar Direction non zero used, all updated
+        self.rho_s = np.zeros(self.Nx)
+        self.E = np.zeros([3, self.Nx])  #E[0]
+        self.B = np.zeros([3, self.Nx])  # B[2]
+
+
         # Initialize the Particles Global Positions and Velocities
         self.Fp = np.zeros([3, self.Np])
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        """Iteration Variabeln Variabeln nicht imme rneu definiert"""
-        self.J_hat = np.zeros([3, self.Nx])
-        self.rho_hat = np.zeros([self.Nx])
-        self.E_theta=np.zeros([3, self.Nx])
+        """Iteration Variabeln In Current Implementation not really Iterated"""
+        self.J_hat_s = np.zeros([3, self.Nx])
+        self.rho_hat_s = np.zeros([self.Nx])
+        self.E_theta = np.zeros([3, self.Nx])
         self.E_theta_p = np.zeros([3, self.Np])
-
-
-
-
-        #self.xp = np.zeros([3, self.Np])
-        self.vp = np.zeros([3, self.Np])
-        self.xp_iter = np.zeros(self.Np)
-        self.vp_iter = np.zeros([3, self.Np])
-        self.rho_iter = np.zeros(self.Nx)
+        self.xp_iter_s = np.zeros(self.Np)
+        self.vp_iter_s = np.zeros([3, self.Np])
+        self.rho_iter_s = np.zeros(self.Nx)
         self.E_prev = np.zeros([3, self.Nx])
 
-        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np, self.vp, self.B)
-        # Solve Method
-        # self.calculus = Integrator(step_method, self.dgl_eq)
-        # self.fourious = FourierSolver(dimension)
+        """
+        Initiale t=0 Conditions
+        """
+
+        self.xp_s, self.vp_s, self.B = initialize_two_stream1D(self.Lx, self.Np, self.B)
+
+
+
+
+
+
+        species=[{
+                "name": "electron",
+                "q": -1.0,
+                "m": 1.0,
+                "beta": None,
+                "xp": self.xp_s.copy(),
+                "vp": self.vp_s.copy(),
+                "xp_iter":self.xp_iter_s.copy(),
+                "vp_iter":self.vp_iter_s.copy(),
+                "rho": self.rho_s.copy(),
+                "rho_hat": self.rho_hat_s.copy(),
+                "J_hat": self.J_hat_s.copy(),
+            },]
+
+
+        super().__init__(dimension=1, dt=dt, stepssize=self.dx,border=(self.Lx,),Np=self.Np,gridNumbers=(self.Nx,),species=species )
+
+
 
     def ShaperParticle(self, x_p, prefaktor, ShapeFunction,toParticle=False):
         # Validate prefaktor shape and assign helper
@@ -124,7 +132,7 @@ class PIC1D(PIC_Solver):
 
 
 
-def initialize_two_stream1D(Lx, Np,vp,B, amplitude=0.01):
+def initialize_two_stream1D(Lx, Np,B, amplitude=0.01):
     """
     Initialize particle positions and velocities for a two-stream instability.
 
@@ -136,6 +144,8 @@ def initialize_two_stream1D(Lx, Np,vp,B, amplitude=0.01):
     Returns:
         tuple: (xp, vp_x) where xp is particle positions and vp_x is x-component of velocities
     """
+
+    vp = np.zeros([3, Np])
     xp1 = 2 * Lx / Np * np.arange(Np // 2)
     xp2 = 2 * Lx / Np * np.arange(Np // 2)
     vp1 = 1 + amplitude * np.sin(2 * np.pi / Lx * xp1)

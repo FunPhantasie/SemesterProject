@@ -1,7 +1,7 @@
 import numpy as np
 class MathTools():
-    def __init__(self,dimension,steps):
-        self.steps=steps
+    def __init__(self,dimension,stepssize):
+        self.steps=stepssize
         if dimension==1:
             self.gradient=self.gradient1d
             self.cross = self.cross1d
@@ -10,8 +10,8 @@ class MathTools():
             self.divergence=self.divergence1d
             self.curl=self.curl1d
 
-            self.dx=steps
-            self.dk = [steps] #For laplace
+            self.dx=stepssize
+            self.dk = [stepssize] #For laplace
         elif dimension==3:
             self.gradient=self.gradient3d
             self.cross=self.cross3d
@@ -19,8 +19,8 @@ class MathTools():
             self.divergence = self.divergence3d
             self.curl=self.curl3d
 
-            self.dx,self.dy,self.dz=steps
-            self.dk=list[steps]
+            self.dx,self.dy,self.dz=stepssize
+            self.dk=list[stepssize]
         else:
             raise NotImplementedError("This Dimension is invalid:"+str(dimension) )
     """Math Operations"""

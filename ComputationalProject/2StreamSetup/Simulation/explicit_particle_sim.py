@@ -1,5 +1,10 @@
 import numpy as np
-from twostream import initialize_two_stream1D
+from .twostream import initialize_two_stream1D
+
+"""
+Solver with the same Scheme as the Electro Statitic Code for two Streams.
+In Case of no normalisation of Grid Charge the E field is the same as in the implicit Method.
+"""
 class Explicit_PIC_Solver():
 
     def __init__(self, border=1, gridpoints=128, NPpCell=20, dt=0.1):
@@ -26,7 +31,7 @@ class Explicit_PIC_Solver():
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np, self.vp, self.B)
+        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np,  self.B)
 
         self.Ekin0 = np.sum(self.vp ** 2) * 0.5
 
