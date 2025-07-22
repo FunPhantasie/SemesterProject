@@ -1,23 +1,38 @@
 import numpy as np
 from semi_implicit_particle_sim import  PIC_Solver
 
-class PIC3D(PIC_Solver):
-    def __init__(self,border=25.0,gridpoints=10,NPpCell=1,dt=0.01):
+class fireHose3D(PIC_Solver):
+    def __init__(self,dt=0.01):
+        B0 = np.array([0.07906, 0.0, 0.0])
+        dt = 0.5  # Normalized time step
+
+
+
+
+
+        # Constants
+        k_B = 1.380649e-23  # Boltzmann constant [J/K]
+        T = 1e5  # Temperature in Kelvin
+        m = 1.67e-27  # Mass of a proton [kg]
+
+        #\beta_{\parallel} = \frac{n k_B T_{\parallel}}{B^2 / (2\mu_0)} = \frac{2 \mu_0 n k_B T_{\parallel}}{B^2}
+
+
 
         # Borders
-        self.Lx = border  # Border length
-        self.Ly = border
-        self.Lz = border
+        self.Lx = 300  # Border length
+        self.Ly = 2
+        self.Lz = 2
 
         # Grid Points alongs Axis
-        self.Nx = gridpoints  # Number of grid points
-        self.Ny = gridpoints  # Number of grid points
-        self.Nz = gridpoints
+        self.Nx = 300  # Number of grid points
+        self.Ny = 1  # Number of grid points
+        self.Nz = 1
 
         self.totalN = 3 * self.Nx* self.Ny* self.Nz
         # Number per Cell
-        self.NPpCell = NPpCell
-
+        self.NPpCell_e = 200
+        self.NPpCell_i = 200
 
 
         self.dx = self.Lx / self.Nx
@@ -64,17 +79,63 @@ class PIC3D(PIC_Solver):
         self.xp_iter = np.zeros([3, self.Np])
         self.vp_iter = np.zeros([3, self.Np])
 
-        # In Simulation wurde nur in x Ebene Gerechnet
-        """
-        self.pos_p = np.random.uniform(0, self.Lx, self.Np)
-        self.vstart_p = np.random.normal(0, 1, self.Np)
-        self.vp[0,:]=self.vstart_p
-        self.B[2,...]=1.
-        """
+        """Setting Up the Velocites and Energies"""
 
-        # Solve Method
-        # self.calculus = Integrator(step_method, self.dgl_eq)
-        # self.fourious = FourierSolver(dimension)
+
+        # Thermal velocity
+        v_th = np.sqrt(k_B * T / m)
+
+        # Sample from 1D thermal (Maxwellian) distribution
+        velocities = np.random.normal(loc=0.0, scale=v_th, size=10000)
+
+
+
+
+
+
+        species = [{
+            "name": "electron",
+            "q": -1.0,
+            "m": 1./25.0,
+            "beta": None,
+            "xp": self.xp.copy(),
+            "vp": self.vp_s.copy(),
+            "xp_iter": self.xp_iter_s.copy(),
+            "vp_iter": self.vp_iter_s.copy(),
+            "rho": self.rho_s.copy(),
+            "rho_hat": self.rho_hat_s.copy(),
+            "J_hat": self.J_hat_s.copy(),
+        },
+        {
+            "name": "ions",
+            "q": 1.0,
+            "m": 1.,
+            "beta": None,
+            "xp": self.xp_s.copy(),
+            "vp": self.vp_s.copy(),
+            "xp_iter": self.xp_iter_s.copy(),
+            "vp_iter": self.vp_iter_s.copy(),
+            "rho": self.rho_s.copy(),
+            "rho_hat": self.rho_hat_s.copy(),
+            "J_hat": self.J_hat_s.copy(),
+        },
+        ]
+
+    def initialize_positions(self, Np):
+        # Gleichmäßig verteilt in der Box (random)
+        return np.array([
+            np.random.uniform(0, self.Lx, Np),
+            np.random.uniform(0, self.Ly, Np),
+            np.random.uniform(0, self.Lz, Np)
+        ])
+
+    def sample_maxwellian_anisotropic(self, vth_par, vth_perp, Np):
+        # Sampling für anisotrope Maxwell-Verteilung (par = x, perp = y/z)
+        vx = np.random.normal(loc=0.0, scale=vth_par, size=Np)
+        vy = np.random.normal(loc=0.0, scale=vth_perp, size=Np)
+        vz = np.random.normal(loc=0.0, scale=vth_perp, size=Np)
+        return np.vstack((vx, vy, vz))
+
     def ShaperParticle(self, x_p, prefaktor, ShapeFunction,toParticle=False):
         # Validate prefaktor shape and assign helper
         if toParticle:
@@ -137,29 +198,6 @@ class PIC3D(PIC_Solver):
         return helper
 
 
-# Simulationsparameter
-N_cells = 64        # Anzahl der Gitterzellen
-L = N_cells         # Länge des Gebietes (Zellabstand = 1 in Normierung)
-N_p = 10000         # Anzahl Makropartikel
-m_e = 1.0           # Elektronenmasse (normiert)
-q_e = - N_cells/N_p # Elektronenladung so gewählt, dass mittlere Dichte 1 ist
-epsilon0 = 1.0      # Permittivitätskonstante normiert auf 1
 
-# Initialisierung der Teilchen
-np.random.seed(0)                    # Saat für Reproduzierbarkeit
-positions = np.random.rand(N_p) * L  # zufällige Anfangspositionen (0 bis L)
-velocities = np.zeros(N_p)
 
-# Zwei Strahlen: Hälfte der Teilchen mit +v0, Hälfte mit -v0
-v0 = 3.0  # Driftgeschwindigkeit der Strahlen (z. B. 3 * Thermalgeschw.)
-half = N_p // 2
-velocities[:half] = v0
-velocities[half:] = -v0
-
-# Kleiner Perturbation zur Anregung einer Welle (Mode 1, cos-Förmig)
-dv = 0.1 * v0  # Amplitude der Geschwindigkeitsstörung (10% von v0)
-phase = 2*np.pi * positions / L
-velocities[:half] += dv * np.cos(phase[:half])   # Beam 1: +cos-Störung
-velocities[half:] -= dv * np.cos(phase[half:])   # Beam 2: -cos-Störung
-
-firhose_case=PIC3D(border=25.0,gridpoints=10,NPpCell=1,dt=0.01)
+firhose_case=fireHose3D(dt=0.01)

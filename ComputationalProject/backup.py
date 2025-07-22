@@ -59,7 +59,7 @@ class PIC_Solver(MathTools):
     def deposit_charge(self,x_p,q_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
         rho=self.ShaperParticle(x_p,q_p, ShapeFunction)
-        rho -= self.Np / self.Lx
+
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
@@ -159,12 +159,14 @@ class PIC_Solver(MathTools):
         rho = self.deposit_charge(xp,qp, af)
         #rho = self.binomial_filter(rho)
         #rho = gaussian_filter(rho, sigma=1.0)
-        #vp = self.binomial_filter(vp)
-        #vp=gaussian_filter(vp, sigma=1.0)
+
         R_vp = self.Evolver_R(vp, self.Bp,beta=beta,c=c)
         J_hat = self.calcJ_hat(xp, R_vp, qp,af)
-        #J_hat =self.binomial_filter(J_hat)
+
         return rho,J_hat
+
+
+
 
 
     def Looper(self, x_i,vp,beta,c, af):
@@ -196,8 +198,8 @@ class PIC_Solver(MathTools):
             x_spp = spp["xp"] #Note this doesnt Copy just references
             v_spp = spp["vp"]
             spp["rho"],spp["J_hat"]=self.MomentsGathering(x_spp,v_spp,qp=q_spp,beta=beta_spp,c=c,af=af)
-            spp["rho_hat"] = self.calcRho_hat(spp["rho"], spp["J_hat"])
-            #spp["rho_hat"] = self.binomial_filter(spp["rho_hat"])
+            rho_hat = self.calcRho_hat(spp["rho"], spp["J_hat"])
+            spp["rho_hat"] = self.binomial_filter(rho_hat)
 
         rho_total = np.zeros_like(spp["rho"])
         J_hat_total = np.zeros_like(spp["J_hat"])
@@ -209,9 +211,8 @@ class PIC_Solver(MathTools):
 
         # Matrix
         rhs = self.matrix_rhs_equation(self.E, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
-        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.species, combi, c)
-
-        #self.E_theta[0] = self.binomial_filter(self.E_theta[0])
+        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta,self.species, combi, c)
+        self.E_theta[0] = self.binomial_filter(self.E_theta[0])
 
         for spp in self.species:
             spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"],spp["vp"],beta=spp["beta"], c=c,af=af)
@@ -226,7 +227,7 @@ class PIC_Solver(MathTools):
             total_error = 0.0
             for spp in self.species:
                 xp_old = spp["xp_iter"].copy()
-                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"],beta=spp["beta"], c=c, af=af)
+                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp"], af)
                 total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
             if total_error < 1e-6:
                 #print("Iteration stopped after:" + str(count))
@@ -257,7 +258,7 @@ class PIC_Solver(MathTools):
         self.E_prev = self.E
         # Update Fields
         self.E = (self.E_theta - (1 - self.theta) * self.E) / self.theta  # For all Theta
-        #self.B -= c * c * self.curl(self.E_theta)
+        self.B -= c * c * self.curl(self.E_theta)
         self.t += self.dt
 
     """
