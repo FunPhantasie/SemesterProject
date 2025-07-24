@@ -3,11 +3,10 @@ from semi_implicit_particle_sim import  PIC_Solver
 
 class fireHose3D(PIC_Solver):
     def __init__(self,dt=0.01):
-        B0 = np.array([0.07906, 0.0, 0.0])
+
         dt = 0.5  # Normalized time step
 
-
-
+        B0 = ([0.07906, 0.0, 0.0])
 
 
         # Constants
@@ -31,8 +30,8 @@ class fireHose3D(PIC_Solver):
 
         self.totalN = 3 * self.Nx* self.Ny* self.Nz
         # Number per Cell
-        self.NPpCell_e = 200
-        self.NPpCell_i = 200
+        self.NPpCell_e = 200#(200,1,1)
+        self.NPpCell_i = 200#(200,1,1)
 
 
         self.dx = self.Lx / self.Nx
@@ -40,53 +39,32 @@ class fireHose3D(PIC_Solver):
         self.dz = self.Lz / self.Nz
 
 
-        super().__init__(dimension=3, dt=dt,steps=(self.dx,self.dy,self.dz))
 
 
         # Total Particles
-        self.Np = self.NPpCell * self.Nx * self.Ny * self.Nz
+        self.Np_e = self.NPpCell_e * self.Nx * self.Ny * self.Nz
+        self.Np_i=self.NPpCell_i * self.Nx * self.Ny * self.Nz
 
-        # Constants
-        self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
-        # self.charge = self.epsilon_0 * self.omega_p**2 * self.Lx**3 / self.Np
+
+
 
         # Grid and wavenumbers (Steps dx,dy,dz)
         self.x = np.linspace(0, self.Lx, self.Nx, endpoint=False)
         self.y = np.linspace(0, self.Ly, self.Ny, endpoint=False)
         self.z = np.linspace(0, self.Lz, self.Nz, endpoint=False)
         self.X, self.Y, self.Z = np.meshgrid(self.x, self.y, self.z,indexing='ij')  # Meshgrid Discussion about Indexing
-
-        # Grid Fields and Densities
-        self.rho = np.zeros([self.Nx, self.Ny, self.Nz])
+        #Particle Independent
         self.E = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Ex, Ey Its E but bc only in forward time its used no one cares
+        self.E_theta = np.zeros([3, self.Nx, self.Ny, self.Nz])
+
         self.B = np.zeros([3, self.Nx, self.Ny, self.Nz])  # Bz (2D)
-        """
-        Using Yee Scheme E and B are Ofset E along the axis of 1/2 and B to the Center Face
-        """
-        # Initialize the Particles Global Positions and Velocities
-        self.vp = np.zeros([3, self.Np])
-        self.Fp = np.zeros([3, self.Np])
-        self.Ep = np.zeros([3, self.Np])
-        self.Bp = np.zeros([3, self.Np])
-        self.xp = np.zeros([3, self.Np])
 
-        """Helper Variabeln nciht imme rneu definiert"""
-        self.J_hat = np.zeros([3, self.Nx, self.Ny, self.Nz])
-        self.rho_hat = np.zeros([self.Nx, self.Ny, self.Nz])
-        self.E_theta=np.zeros([3, self.Nx, self.Ny, self.Nz])
-        self.E_theta_p = np.zeros([3, self.Np])
-
-        self.xp_iter = np.zeros([3, self.Np])
-        self.vp_iter = np.zeros([3, self.Np])
-
-        """Setting Up the Velocites and Energies"""
+        #Species Abhängig
 
 
-        # Thermal velocity
-        v_th = np.sqrt(k_B * T / m)
 
-        # Sample from 1D thermal (Maxwellian) distribution
-        velocities = np.random.normal(loc=0.0, scale=v_th, size=10000)
+
+
 
 
 
@@ -100,31 +78,49 @@ class fireHose3D(PIC_Solver):
             "beta_mag_par": 8,
             "beta_mag_perp": 0.8,
             "beta": None,
-            "xp": self.xp.copy(),
-            "vp": self.vp_s.copy(),
-            "xp_iter": self.xp_iter_s.copy(),
-            "vp_iter": self.vp_iter_s.copy(),
-            "rho": self.rho_s.copy(),
-            "rho_hat": self.rho_hat_s.copy(),
-            "J_hat": self.J_hat_s.copy(),
+            "NPpCell": self.NPpCell_e,
+            "Np":self.Np_e
         },
         {
             "name": "ions",
             "q": 1.0,
             "m": 1.,
+            "beta_mag_par": 0,
+            "beta_mag_perp": 0,
             "beta": None,
-            "xp": self.xp_s.copy(),
-            "vp": self.vp_s.copy(),
-            "xp_iter": self.xp_iter_s.copy(),
-            "vp_iter": self.vp_iter_s.copy(),
-            "rho": self.rho_s.copy(),
-            "rho_hat": self.rho_hat_s.copy(),
-            "J_hat": self.J_hat_s.copy(),
+            "NPpCell": self.NPpCell_i,
+            "Np": self.Np_i
         },
         ]
 
+        stepssize=(self.dx,self.dy,self.dz)
+        border=(self.Lx,self.Ly,self.Lx)
+        Np=(self.Np_e,self.Np_i)
+        gridNumbers=(self.Nx,self.Ny,self.Nz)
+
+        super().__init__(dimension=3, dt=dt,stepssize=stepssize,border=border,gridNumbers=gridNumbers,species=species)
+
+        """
+        Initialising
+        Setting Up the Velocites and Energies        
+        """
+        self.B[:] = np.reshape(B0, (3, 1, 1, 1))
+
+        #vx,vy,vz Thermal Electrons
+        #ux,uy,uz Drift Velcctiy Electons
+        """
+        Tpar/Tperp=10
+        (v_th_e_par/v_th_i)**2 =1
+        """
+
+        # Thermal velocity
+        v_th = np.sqrt(k_B * T / m)
+
+        # Sample from 1D thermal (Maxwellian) distribution
+        velocities = np.random.normal(loc=0.0, scale=v_th, size=10000)
+
     def initialize_positions(self, Np):
-        # Gleichmäßig verteilt in der Box (random)
+        # Uniformly Generateed all Same Propbality
         return np.array([
             np.random.uniform(0, self.Lx, Np),
             np.random.uniform(0, self.Ly, Np),

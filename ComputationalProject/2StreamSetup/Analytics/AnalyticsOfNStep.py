@@ -41,7 +41,7 @@ def run(solver_test,solver_ref,total_steps,t_end):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     # Plot particles (x,v)
-    Np = solver_test.Np
+    Np = solver_test.species[0]["Np"]
     ax1.plot(x1[:Np//2], v1_x[:Np//2], 'o', markersize=0.5, label='Species A')
     ax1.plot(x1[Np//2:], v1_x[Np//2:], 'o', markersize=0.5, label='Species B')
 

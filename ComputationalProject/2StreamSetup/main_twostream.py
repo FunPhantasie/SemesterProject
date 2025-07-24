@@ -12,7 +12,7 @@ border = 1
 gridpoints = 128
 NPpCell = 20
 dt = 0.05
-t_end = 3
+t_end = 0.40
 nsteps = 2
 total_steps = int(t_end / dt)
 

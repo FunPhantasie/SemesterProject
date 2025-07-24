@@ -82,7 +82,7 @@ def run(solver_test,solver_ref,total_steps,t_end):
 
 
     def update_plot(frame):
-        Np = solver_test.Np
+        Np = solver_test.species[0]["Np"]
         x1 = x_test_history[frame]
         v1 = v_test_history[frame][0]
         t = t_history[frame]

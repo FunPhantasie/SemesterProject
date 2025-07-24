@@ -97,7 +97,7 @@ def run(solver_test,solver_ref,total_steps,t_end):
         return sc1_a, sc1_b, sc2_a, sc2_b, text1, text2
 
     def update(frame):
-        Np = solver_test.Np
+        Np = solver_test.species[0]["Np"]
         Np2 = solver_ref.Np
 
         x1 = x_test_history[frame]

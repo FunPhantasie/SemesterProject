@@ -5,7 +5,7 @@ from scipy.ndimage import gaussian_filter
 
 class PIC_Solver(MathTools):
 
-    def __init__(self, dimension,dt,stepssize,border,Np,gridNumbers,species):
+    def __init__(self, dimension,dt,stepssize,border,gridNumbers,species):
         # Physical constants
         self.c = 1
         self.pi = np.pi
@@ -34,9 +34,31 @@ class PIC_Solver(MathTools):
         # Handling Multiple Species
         for sp in species:
             sp["beta"] = sp["q"] * self.dt / (2 * sp["m"] * self.c)
+
+
+
+            """Particle Modes Params"""
+            # Grid Fields and Densities
+            sp["rho"] = np.zeros([*gridNumbers])
+
+
+            # Initialize the Particles Global Positions and Velocities
+
+            sp["Fp"] = np.zeros([3, sp["Np"]])
+            sp["Ep"] = np.zeros([3, sp["Np"]])
+            sp["Bp"] = np.zeros([3, sp["Np"]])
+            sp["E_theta_p"] = np.zeros([3, sp["Np"]])
+            sp["xp"] = np.zeros([ sp["Np"]])
+            sp["vp"] = np.zeros([3, sp["Np"]])
+
+            """Helper Variabeln nciht imme rneu definiert"""
+            sp["J_hat"] = np.zeros([3, *gridNumbers])
+            sp["rho_hat"] = np.zeros([*gridNumbers])
+
+            sp["xp_iter"] = np.zeros([ sp["Np"]])
+            sp["vp_iter"] = np.zeros([3, sp["Np"]])
+
         self.species = species
-
-
 
         # Start Initial State
         self.t = 0.0
@@ -54,18 +76,23 @@ class PIC_Solver(MathTools):
         """Analytics Initialization"""
         # self.Ekin0 = np.sum(self.vp ** 2) * 0.5
         # self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
+        #charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
+
+
+
+
         self.checkStability()  # Cfl Stability
 
-    def deposit_charge(self,x_p,q_p, ShapeFunction):
+    def deposit_charge(self,x_p,Np,q_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
-        rho=self.ShaperParticle(x_p,q_p, ShapeFunction)
-        rho -= self.Np / self.Lx
+        rho=self.ShaperParticle(x_p,Np,q_p, ShapeFunction)
+        rho -= Np / self.Volume
         return rho
 
-    def interpolate_fields_to_particles(self,  x_p,field, ShapeFunction):
+    def interpolate_fields_to_particles(self,  x_p,field,Np, ShapeFunction):
         """Interpolate E and B fields to particle positions"""
         # Field Dimension noch nicht bestimmt Ersten sollten Drei sein .
-        return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=True)
+        return self.ShaperParticle(x_p,Np ,field, ShapeFunction, toParticle=True)
 
     def matrix_rhs_equation(self, E, B, J_hat, rho_hat,combi,c):
 
@@ -77,8 +104,8 @@ class PIC_Solver(MathTools):
         gg=vec+beta/c *self.cross(vec,Field)+(beta/c)**2 *self.dot(vec,Field)*Field
         return gg/(1+(beta/c)**2*np.sum(np.abs(Field)**2, axis=0))
 
-    def interpolate_particlefield_to_grid(self,x_p,field,ShapeFunction):
-        return self.ShaperParticle(x_p, field, ShapeFunction, toParticle=False)
+    def interpolate_particlefield_to_grid(self,x_p,Np,field,ShapeFunction):
+        return self.ShaperParticle(x_p,Np, field, ShapeFunction, toParticle=False)
 
     def matrix_lhs_equation(self, E_theta,species,combi,c):
 
@@ -126,11 +153,11 @@ class PIC_Solver(MathTools):
 
         return 0.25 * np.roll(array, 1) + 0.5 * array + 0.25 * np.roll(array, -1)
 
-    def calcJ_hat(self,xp,R_vp,q_p,ShapeFunction):
+    def calcJ_hat(self,xp,R_vp,Np,q_p,ShapeFunction):
 
-        first_sum_vec=q_p*self.ShaperParticle(xp, R_vp, ShapeFunction)                  #[3,nx]
+        first_sum_vec=q_p*self.ShaperParticle(xp,Np, R_vp, ShapeFunction)                  #[3,nx]
 
-        second_sum=_scalar=q_p*self.ShaperParticle(xp, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
+        second_sum=_scalar=q_p*self.ShaperParticle(xp,Np, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
 
 
 
@@ -153,30 +180,30 @@ class PIC_Solver(MathTools):
             raise NotImplementedError()
         return  np.mod(x, self.Lx)
 
-    def MomentsGathering(self, xp,vp,qp,beta,c, af):
+    def MomentsGathering(self, xp,vp,Bp,Np,qp,beta,c, af):
         """Advance one full PIC cycle"""
 
-        rho = self.deposit_charge(xp,qp, af)
+        rho = self.deposit_charge(xp,Np,qp, af)
         #rho = self.binomial_filter(rho)
         #rho = gaussian_filter(rho, sigma=1.0)
         #vp = self.binomial_filter(vp)
         #vp=gaussian_filter(vp, sigma=1.0)
-        R_vp = self.Evolver_R(vp, self.Bp,beta=beta,c=c)
-        J_hat = self.calcJ_hat(xp, R_vp, qp,af)
+        R_vp = self.Evolver_R(vp, Bp,beta=beta,c=c)
+        J_hat = self.calcJ_hat(xp, R_vp,Np,qp,af)
         #J_hat =self.binomial_filter(J_hat)
         return rho,J_hat
 
 
-    def Looper(self, x_i,vp,beta,c, af):
+    def Looper(self, x_i,vp,Np,beta,c, af):
         # Grid to Particle
-        self.E_theta_p = self.interpolate_fields_to_particles(x_i, self.E_theta, af)  # E
-        self.Bp = self.interpolate_fields_to_particles(x_i, self.B, af)  # B
+        E_theta_p = self.interpolate_fields_to_particles(x_i,self.E_theta,Np, af)  # E
+        Bp = self.interpolate_fields_to_particles(x_i, self.B, Np,af)  # B
 
         # Calc Velocity
 
-        v_hat = self.calc_v_hat(vp, self.E_theta_p,beta)  # Here its Important that it is vp
+        v_hat = self.calc_v_hat(vp, E_theta_p,beta)  # Here its Important that it is vp
 
-        v_hat = self.Evolver_R(v_hat, self.Bp,beta = beta, c = c)
+        v_hat = self.Evolver_R(v_hat, Bp,beta = beta, c = c)
 
         x_i = self.particle_mover(v_hat,x_i, 0.5 * self.dt)
 
@@ -195,7 +222,9 @@ class PIC_Solver(MathTools):
             beta_spp = spp["beta"]
             x_spp = spp["xp"] #Note this doesnt Copy just references
             v_spp = spp["vp"]
-            spp["rho"],spp["J_hat"]=self.MomentsGathering(x_spp,v_spp,qp=q_spp,beta=beta_spp,c=c,af=af)
+            Np_ssp= spp["Np"]
+            Bp_ssp=spp["Bp"]
+            spp["rho"],spp["J_hat"]=self.MomentsGathering(x_spp,v_spp,Bp=Bp_ssp,Np=Np_ssp,qp=q_spp,beta=beta_spp,c=c,af=af)
             spp["rho_hat"] = self.calcRho_hat(spp["rho"], spp["J_hat"])
             #spp["rho_hat"] = self.binomial_filter(spp["rho_hat"])
 
@@ -214,7 +243,7 @@ class PIC_Solver(MathTools):
         #self.E_theta[0] = self.binomial_filter(self.E_theta[0])
 
         for spp in self.species:
-            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"],spp["vp"],beta=spp["beta"], c=c,af=af)
+            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"],spp["vp"],spp["Np"],beta=spp["beta"], c=c,af=af)
 
 
 
@@ -226,7 +255,7 @@ class PIC_Solver(MathTools):
             total_error = 0.0
             for spp in self.species:
                 xp_old = spp["xp_iter"].copy()
-                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"],beta=spp["beta"], c=c, af=af)
+                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"],spp["Np"],beta=spp["beta"], c=c, af=af)
                 total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
             if total_error < 1e-6:
                 #print("Iteration stopped after:" + str(count))
@@ -247,7 +276,7 @@ class PIC_Solver(MathTools):
             # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
 
             ## For Debugging not needed Elsewhere
-            spp["rho"] = self.deposit_charge(spp["xp"],q_spp, af)
+            spp["rho"] = self.deposit_charge(spp["xp"],spp["Np"],q_spp, af)
 
 
             ##Update Rest
