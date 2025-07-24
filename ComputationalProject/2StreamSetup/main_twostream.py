@@ -36,4 +36,4 @@ elif mode == 2:
 elif mode == 3:
     run_flipbook(solver_test, solver_ref, total_steps,t_end)
 else:
-    raise ValueError("Ungültiger Modus: Wähle 1, 2 oder 3")
+    raise ValueError("No Valid Mode: Choose 1, 2 or 3")

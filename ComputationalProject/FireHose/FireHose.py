@@ -97,6 +97,8 @@ class fireHose3D(PIC_Solver):
             "name": "electron",
             "q": -1.0,
             "m": 1./25.0,
+            "beta_mag_par": 8,
+            "beta_mag_perp": 0.8,
             "beta": None,
             "xp": self.xp.copy(),
             "vp": self.vp_s.copy(),

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import gmres, LinearOperator
-from .helper import MathTools
+from helper import MathTools
 from scipy.ndimage import gaussian_filter
 
 class PIC_Solver(MathTools):
