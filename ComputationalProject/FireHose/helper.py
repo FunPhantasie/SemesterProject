@@ -20,7 +20,7 @@ class MathTools():
             self.curl=self.curl3d
 
             self.dx,self.dy,self.dz=stepssize
-            self.dk=list[stepssize]
+            self.dk=np.array(stepssize)
         else:
             raise NotImplementedError("This Dimension is invalid:"+str(dimension) )
     """Math Operations"""
@@ -30,7 +30,7 @@ class MathTools():
         dk = self.dk
 
         for index, a_k in enumerate(A):
-            print(index)
+
             rolledFor = np.roll(a_k, shift=-1, axis=index)  # Shift along x-axis
             rolledBack = np.roll(a_k, shift=1, axis=index)  # Shift along y-axis
             lap_A[index] = (rolledFor + rolledBack - 2 * a_k) / (dk[index] ** 2)
@@ -50,9 +50,7 @@ class MathTools():
 
 
     def cross3d(self, A, B):
-        print("Cross")
-        print(np.shape(A))
-        print(np.shape(B))
+
         U = np.zeros_like(A)
         U[0, ...] = A[1, ...] * B[2, ...] - A[2, ...] * B[1, ...]
         U[1, ...] = A[2, ...] * B[0, ...] - A[0, ...] * B[2, ...]
@@ -65,9 +63,7 @@ class MathTools():
         """
         return U
     def cross1d(self, A, B):
-        #print("Cross")
-        #print(np.shape(A))
-        #print(np.shape(B))
+
         U = np.zeros_like(A)
         U[0, ...] = A[1, ...] * B[2, ...] - A[2, ...] * B[1, ...]
         U[1, ...] = A[2, ...] * B[0, ...] - A[0, ...] * B[2, ...]

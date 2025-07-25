@@ -6,6 +6,7 @@ from scipy.ndimage import gaussian_filter
 class PIC_Solver(MathTools):
 
     def __init__(self, dimension,dt,stepssize,border,gridNumbers,species):
+
         # Physical constants
         self.c = 1
         self.pi = np.pi
@@ -15,8 +16,6 @@ class PIC_Solver(MathTools):
         # Setup Math Tool Stepsize include dx,dy,dz if exist
         super().__init__(dimension=dimension, stepssize=stepssize)
         self.dimension = dimension
-
-
 
         #Stabilitay Evolution Params
         self.theta = 0.8  # Implicit Parameter
@@ -36,9 +35,6 @@ class PIC_Solver(MathTools):
             sp["beta"] = sp["q"] * self.dt / (2 * sp["m"] * self.c)
 
 
-
-            """Particle Modes Params"""
-            # Grid Fields and Densities
             sp["rho"] = np.zeros([*gridNumbers])
 
 
@@ -48,15 +44,22 @@ class PIC_Solver(MathTools):
             sp["Ep"] = np.zeros([3, sp["Np"]])
             sp["Bp"] = np.zeros([3, sp["Np"]])
             sp["E_theta_p"] = np.zeros([3, sp["Np"]])
-            sp["xp"] = np.zeros([ sp["Np"]])
             sp["vp"] = np.zeros([3, sp["Np"]])
 
-            """Helper Variabeln nciht imme rneu definiert"""
+            """Helpers Iter"""
             sp["J_hat"] = np.zeros([3, *gridNumbers])
             sp["rho_hat"] = np.zeros([*gridNumbers])
-
-            sp["xp_iter"] = np.zeros([ sp["Np"]])
+            sp["xp_iter"] = np.zeros([sp["Np"]])
             sp["vp_iter"] = np.zeros([3, sp["Np"]])
+
+            if self.dimension==3:
+                sp["xp"] = np.zeros([3, sp["Np"]])
+            elif self.dimension==1:
+                sp["xp"] = np.zeros([sp["Np"]])
+            else:
+                raise SyntaxError("Dimension must be 3 or 1")
+
+
 
         self.species = species
 
@@ -86,7 +89,7 @@ class PIC_Solver(MathTools):
     def deposit_charge(self,x_p,Np,q_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
         rho=self.ShaperParticle(x_p,Np,q_p, ShapeFunction)
-        rho -= Np / self.Volume
+        #rho -= Np / self.Volume
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field,Np, ShapeFunction):
@@ -177,8 +180,14 @@ class PIC_Solver(MathTools):
 
     def boundary(self,x):
         if self.dimension==3:
-            raise NotImplementedError()
-        return  np.mod(x, self.Lx)
+            x[0]=np.mod(x[0], self.Lx)
+            x[1]=np.mod(x[1], self.Ly)
+            x[2]=np.mod(x[2], self.Lz)
+            return x
+        elif self.dimension==1:
+            return  np.mod(x, self.Lx)
+        else:
+            raise NotImplementedError("Wrong Dim"+str(self.dimension))
 
     def MomentsGathering(self, xp,vp,Bp,Np,qp,beta,c, af):
         """Advance one full PIC cycle"""
@@ -209,13 +218,14 @@ class PIC_Solver(MathTools):
 
         return self.boundary(x_i), v_hat
 
-
+    """Advance one full PIC cycle for all species"""
     def step(self):
-        """Advance one full PIC cycle for all species"""
+        """Take Params to Use"""
         af = lambda a: a #Spline Function (Shaperfunction) Identity yet
         c=self.c
         combi=self.combi
 
+        """Moments Gathering for all species"""
         for spp in self.species:
             q_spp = spp["q"]
             m_spp = spp["m"]
@@ -235,6 +245,8 @@ class PIC_Solver(MathTools):
             rho_total += spp["rho"]
             J_hat_total += spp["J_hat"]
             rho_hat_total += spp["rho_hat"]
+        """Moments Gathering Finshed"""
+
 
         # Matrix
         rhs = self.matrix_rhs_equation(self.E, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
@@ -242,14 +254,13 @@ class PIC_Solver(MathTools):
 
         #self.E_theta[0] = self.binomial_filter(self.E_theta[0])
 
+
+
+        """
+        Current Looping for Updated Positions
+        """
         for spp in self.species:
-            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"],spp["vp"],spp["Np"],beta=spp["beta"], c=c,af=af)
-
-
-
-
-
-
+            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"], spp["vp"], spp["Np"], beta=spp["beta"], c=c, af=af)
         count = 0
         for _ in range(5):
             total_error = 0.0
@@ -263,40 +274,32 @@ class PIC_Solver(MathTools):
 
             count += 1
 
-
-        ###
-        # End
-        ###
-
         for spp in self.species:
             q_spp = spp["q"]
             m_spp = spp["m"]
             beta_spp = spp["beta"]
             spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
             # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
+            spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
+            spp["xp"] = self.boundary(spp["xp"])
 
             ## For Debugging not needed Elsewhere
             spp["rho"] = self.deposit_charge(spp["xp"],spp["Np"],q_spp, af)
 
 
-            ##Update Rest
-            spp["xp"] = self.particle_mover(spp["vp_iter"],spp["xp"], self.dt)
-            spp["xp"] = self.boundary(spp["xp"])
 
         self.E_prev = self.E
         # Update Fields
         self.E = (self.E_theta - (1 - self.theta) * self.E) / self.theta  # For all Theta
-        #self.B -= c * c * self.curl(self.E_theta)
+        self.B -= c * c * self.curl(self.E_theta)
         self.t += self.dt
 
+
+
+
     """
-    
     Analytics for Debugging
-       
-    
     """
-
-
     def CalcKinEnergery(self):
         el = self.species[0]
         return np.sum(el["vp"]**2)*0.5

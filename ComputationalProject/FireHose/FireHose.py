@@ -1,5 +1,6 @@
 import numpy as np
 from semi_implicit_particle_sim import  PIC_Solver
+from analytics_plotting import run
 
 class fireHose3D(PIC_Solver):
     def __init__(self,dt=0.01):
@@ -103,21 +104,33 @@ class fireHose3D(PIC_Solver):
         """
         Initialising
         Setting Up the Velocites and Energies        
-        """
-        self.B[:] = np.reshape(B0, (3, 1, 1, 1))
-
         #vx,vy,vz Thermal Electrons
         #ux,uy,uz Drift Velcctiy Electons
+        
+        uth = 0.158 0.0316 # Thermal velocity in X
+        vth = 0.05 0.0316 # Thermal velocity in Y
+        wth = 0.05 0.0316 # Thermal velocity in Z
+        u0 = 0.0 0.0 # Drift velocity in X
+        v0 = 0.0 0.0 # Drift velocity in y
+        w0 = 0.0 0.0 # Drift velocity in z
+        """
+        self.B[:] = np.reshape(B0, (3, 1, 1, 1))
+        self.species[0]["xp"]=self.initialize_positions(self.species[0]["Np"])
+        self.species[1]["xp"]=self.initialize_positions(self.species[1]["Np"])
+        vth_perp = 0.0316  # normalized, z.B. v_perp = sqrt(beta_perp * B^2 / (2n))
+        vth_par_e = vth_perp * np.sqrt(10)
+        self.species[0]["vp"] = self.sample_maxwellian_anisotropic(vth_par_e, vth_perp, self.species[0]["Np"])
+
         """
         Tpar/Tperp=10
         (v_th_e_par/v_th_i)**2 =1
         """
 
         # Thermal velocity
-        v_th = np.sqrt(k_B * T / m)
+        #v_th = np.sqrt(k_B * T / m)
 
         # Sample from 1D thermal (Maxwellian) distribution
-        velocities = np.random.normal(loc=0.0, scale=v_th, size=10000)
+        #velocities = np.random.normal(loc=0.0, scale=v_th, size=10000)
 
     def initialize_positions(self, Np):
         # Uniformly Generateed all Same Propbality
@@ -134,10 +147,10 @@ class fireHose3D(PIC_Solver):
         vz = np.random.normal(loc=0.0, scale=vth_perp, size=Np)
         return np.vstack((vx, vy, vz))
 
-    def ShaperParticle(self, x_p, prefaktor, ShapeFunction,toParticle=False):
+    def ShaperParticle(self, x_p,Np, prefaktor, ShapeFunction,toParticle=False):
         # Validate prefaktor shape and assign helper
         if toParticle:
-            helper = np.zeros([3, self.Np])
+            helper = np.zeros([3, Np])
 
         # Initialize helper based on prefaktor type
 
@@ -147,8 +160,8 @@ class fireHose3D(PIC_Solver):
                 is_vector = False
                 is_single_value = True
             else:
-                is_scalar = prefaktor.shape == (self.Np,)
-                is_vector = prefaktor.shape == (3, self.Np)
+                is_scalar = prefaktor.shape == (Np,)
+                is_vector = prefaktor.shape == (3, Np)
                 is_single_value = prefaktor.shape == (1,)
             if not (is_scalar or is_vector):
                 raise ValueError(f"prefaktor shape {prefaktor.shape} is invalid. Expected (Np,) or (3, Np).")
@@ -158,7 +171,7 @@ class fireHose3D(PIC_Solver):
 
 
         # Process each particle
-        for particle_index in range(self.Np):
+        for particle_index in range(Np):
             # Particle position in grid coordinates
             x, y, z = x_p[:, particle_index]
 
@@ -198,4 +211,16 @@ class fireHose3D(PIC_Solver):
 
 
 
-firhose_case=fireHose3D(dt=0.01)
+
+"""
+Choose Params
+"""
+
+dt = 0.01
+t_end = 0.01
+nsteps = 1
+total_steps = int(t_end / dt)
+
+firhose_case=fireHose3D(dt=dt)
+ShowSingleStep=None
+run(firhose_case,  total_steps, dt,ShowSingleStep=ShowSingleStep)
