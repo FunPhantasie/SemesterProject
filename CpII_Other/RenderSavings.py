@@ -17,15 +17,10 @@ def CallItRenderer(solver_test,solver_ref,total_steps,t_end):
 
     # Define file paths for saved data (only for solver_test)
     data_files = {
-        'x_test': 'rendered/x_test_history.npy',
-        'v_test': 'rendered/v_test_history.npy',
+
         'x_ref': 'rendered/x_ref_history.npy',
         'v_ref': 'rendered/v_ref_history.npy',
         't': 'rendered/t_history.npy',
-        'energy_total_test': 'rendered/energy_total_history_test.npy',
-        'energy_kin_test': 'rendered/energy_kin_history_test.npy',
-        'rho_test': 'rendered/rho_test_history.npy',
-        'E_test': 'rendered/E_test_history.npy',
         'rho_ref': 'rendered/rho_ref_history.npy',
         'E_ref': 'rendered/E_ref_history.npy',
         'energy_total_ref': 'rendered/energy_total_history_ref.npy',
@@ -80,7 +75,7 @@ def CallItRenderer(solver_test,solver_ref,total_steps,t_end):
         Calculation
         """
         for _ in tqdm(range(total_steps), desc="Simulating", unit="step"):
-            solver_test.step()
+            #solver_test.step()
             solver_ref.step()  # Still run solver_ref for consistency, but don't store its data
 
             # Store data for solver_test (copy to avoid reference issues)
@@ -89,12 +84,12 @@ def CallItRenderer(solver_test,solver_ref,total_steps,t_end):
             v_test_history.append(electrons["vp"].copy())
             x_ref_history.append(solver_ref.xp.copy())
             v_ref_history.append(solver_ref.vp.copy())
-            t_history.append(solver_test.t)
+            t_history.append(solver_ref.t)
             energy_total_history_test.append(solver_test.CalcEFieldEnergy())
             energy_kin_history_test.append(solver_test.CalcKinEnergery())
-            rho_test_history.append(electrons["rho"].copy() + 20)
+            rho_test_history.append(electrons["rho"].copy() )
             E_test_history.append(solver_test.E.copy())
-            rho_ref_history.append(solver_ref.rho.copy() - 5080)
+            rho_ref_history.append(solver_ref.rho.copy() )
             E_ref_history.append(solver_ref.E.copy())
             energy_total_history_ref.append(solver_ref.CalcEFieldEnergy())
             energy_kin_history_ref.append(solver_ref.CalcKinEnergery())

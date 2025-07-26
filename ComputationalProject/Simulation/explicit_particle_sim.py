@@ -1,5 +1,5 @@
 import numpy as np
-from .twostream import initialize_two_stream1D
+
 
 """
 Solver with the same Scheme as the Electro Statitic Code for two Streams.
@@ -17,23 +17,37 @@ class Explicit_PIC_Solver():
         self.t = 0.0
 
         self.x = self.dx * np.arange(self.Nx)
-
+        # self.charge =self.omega_p ** 2 / self.qDm * self.epsilon_0 * self.Lx / self.Np *
         self.qDm = -1
         self.omega_p = 1
         self.epsilon_0 = 1
-        self.charge = self.omega_p ** 2 / self.qDm * self.epsilon_0 * self.Lx / self.Np
+        self.charge = self.qDm/(1) *self.dx/self.Np*self.Lx
 
         self.E = np.zeros([3, self.Nx])
         self.B = np.zeros([3, self.Nx])
         self.rho = np.zeros(self.Nx)
-
+        self.xp =np.zeros( self.Np)
         self.vp = np.zeros([3, self.Np])
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        self.xp, self.vp, self.B = initialize_two_stream1D(self.Lx, self.Np,  self.B)
 
-        self.Ekin0 = np.sum(self.vp ** 2) * 0.5
+
+
+
+        """Not Used For Calculation just for Plotting"""
+        sp = [{
+            "name": "e",
+            "q": -1.0,
+            "m": 1.0,
+            "beta_mag_par": 0,
+            "beta_mag_perp": 0,
+            "beta": None,
+            "NPpCell": NPpCell,
+            "Np": self.Np
+        },]
+
+        self.species=sp
 
     def step(self):
         self.weight_rho()
@@ -89,8 +103,12 @@ class Explicit_PIC_Solver():
     def weight_rho(self):
         self.rho *= 0
         self.interpolation_rho_to_grid()
-        self.rho -= self.Np / self.Lx
-        self.rho *= 2 * self.NPpCell * self.charge / self.dx
+        self.rho*=self.charge
+        #self.rho+=1/(4*np.pi)
+        #self.rho -= self.rhostart
+        #self.rho -= self.Np / self.Lx
+        #self.rho *= 2 * self.NPpCell * self.charge / self.dx
+
         # rho -= self.Np / self.Nx its not than if all moments are the same
         #Ist kompliziert weil geklaut aber eigentlich nur  2 *omega^2 m/q *epsilon´
         # print(2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) )
@@ -111,17 +129,21 @@ class Explicit_PIC_Solver():
                 self.J[d, ip1] += diff * self.vp[d, p]
         self.J *= self.charge / self.dx
     def calc_E(self):
+
         rhohat = np.fft.rfft(self.rho)
         kx = 2 * np.pi / self.Lx * np.arange(rhohat.size)
         with np.errstate(divide='ignore', invalid='ignore'):
             tmp = np.where(kx * kx > 0, rhohat / (1j * kx), 0.)
         self.E[0, :] = np.fft.irfft(tmp)
+        """
         # Faraday's law: dE/dt = curl B - J
-        #curl_B = np.zeros_like(self.E)
-        #curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
-        #curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
-        #self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
+        curl_B = np.zeros_like(self.E)
+        curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
+        curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
+        self.E[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
 
+        #self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
+        """
     def calc_B(self):
         # dB/dt = - curl E
         curl_E = np.zeros_like(self.B)

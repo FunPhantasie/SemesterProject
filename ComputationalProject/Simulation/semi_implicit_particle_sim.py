@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import gmres, LinearOperator
-from helper import MathTools
+from .helper import MathTools
 from scipy.ndimage import gaussian_filter
 
 class PIC_Solver(MathTools):
@@ -103,7 +103,7 @@ class PIC_Solver(MathTools):
 
     def Evolver_R(self,vec,Field,beta,c):
 
-        #return vec #Electro static
+        return vec #Electro static
         gg=vec+beta/c *self.cross(vec,Field)+(beta/c)**2 *self.dot(vec,Field)*Field
         return gg/(1+(beta/c)**2*np.sum(np.abs(Field)**2, axis=0))
 
@@ -160,6 +160,7 @@ class PIC_Solver(MathTools):
 
         first_sum_vec=q_p*self.ShaperParticle(xp,Np, R_vp, ShapeFunction)                  #[3,nx]
 
+        return first_sum_vec
         second_sum=_scalar=q_p*self.ShaperParticle(xp,Np, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
 
 
@@ -167,6 +168,7 @@ class PIC_Solver(MathTools):
         return first_sum_vec - self.theta*self.dt *self.gradient(second_sum)
 
     def calcRho_hat(self,rho,J_hat):
+        return rho
         return rho-self.dt*self.theta *self.divergence(J_hat)
 
     def calc_v_hat(self,vp,E_theta_p,beta):
@@ -205,6 +207,9 @@ class PIC_Solver(MathTools):
 
     def Looper(self, x_i,vp,Np,beta,c, af):
         # Grid to Particle
+        #self.E_theta= np.zeros_like(self.E_theta)
+        self.B= np.zeros_like(self.B)
+
         E_theta_p = self.interpolate_fields_to_particles(x_i,self.E_theta,Np, af)  # E
         Bp = self.interpolate_fields_to_particles(x_i, self.B, Np,af)  # B
 
@@ -291,7 +296,7 @@ class PIC_Solver(MathTools):
         self.E_prev = self.E
         # Update Fields
         self.E = (self.E_theta - (1 - self.theta) * self.E) / self.theta  # For all Theta
-        self.B -= c * c * self.curl(self.E_theta)
+        #self.B -= c * c * self.curl(self.E_theta)
         self.t += self.dt
 
 
