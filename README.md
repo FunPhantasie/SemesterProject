@@ -31,6 +31,6 @@ You will also find the **initialization** of the problem here, including:
 
 - The magnetic field **B** is initially set to `0`, but is updated during the simulation.
 - The normalization of charge is done via:
-
+- Electric FIeld is Calculated with J
   ```python
   weight = 1 / (Nx * dx)
