@@ -21,7 +21,7 @@ class Explicit_PIC_Solver():
         self.qDm = -1
         self.omega_p = 1
         self.epsilon_0 = 1
-        self.charge = self.qDm/(1) *self.dx/self.Np*self.Lx
+        self.charge = self.qDm * 1/(self.Nx * self.dx)#self.qDm/(1) *self.dx/self.Np*self.Lx
 
         self.E = np.zeros([3, self.Nx])
         self.B = np.zeros([3, self.Nx])
@@ -51,16 +51,24 @@ class Explicit_PIC_Solver():
 
     def step(self):
         self.weight_rho()
+        #Electro Magnetic
+        # ------------------#
         self.weight_J()
+
+        #------------------#
         self.calc_E()
-        #self.calc_B()
+        self.calc_B()
         self.force()
         self.boris(self.dt)
         self.step_x(self.dt)
         self.boundary()
         self.t += self.dt
+        self.species[0]["xp"] = self.xp
+        self.species[0]["vp"] = self.vp
+        self.species[0]["rho"] = self.rho
 
     def step_x(self, dt_):
+
         self.xp += dt_ * self.vp[0, :]
 
     def boris(self, dt_):
@@ -127,9 +135,9 @@ class Explicit_PIC_Solver():
             for d in range(3):
                 self.J[d, i] += (1 - diff) * self.vp[d, p]
                 self.J[d, ip1] += diff * self.vp[d, p]
-        self.J *= self.charge / self.dx
+        self.J *= self.charge
     def calc_E(self):
-
+        """
         rhohat = np.fft.rfft(self.rho)
         kx = 2 * np.pi / self.Lx * np.arange(rhohat.size)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -140,10 +148,10 @@ class Explicit_PIC_Solver():
         curl_B = np.zeros_like(self.E)
         curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
         curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
-        self.E[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
+        #self.E[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
 
-        #self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
-        """
+        self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
+
     def calc_B(self):
         # dB/dt = - curl E
         curl_E = np.zeros_like(self.B)
@@ -155,7 +163,7 @@ class Explicit_PIC_Solver():
         self.xp = np.mod(self.xp, self.Lx)
 
     def CalcKinEnergery(self):
-        return (0.5 * np.sum(self.vp ** 2) / self.Ekin0 * 100)
+        return (0.5 * np.sum(self.vp ** 2) / self.Ekin0 )
 
     def CalcEFieldEnergy(self):
         return (0.5 * np.sum(self.E ** 2))

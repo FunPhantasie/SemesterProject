@@ -6,7 +6,7 @@ mpl.use('TkAgg')
 import win32api
 import win32con
 
-def CallItRenderer(solver_test, total_steps, path,step):
+def CallItRenderer(solver, total_steps, path,step):
     # Show a yes/no message box
     last_part = os.path.basename(path)
     response = win32api.MessageBox(0, "Neurechnen?", "Simulation von "+last_part, win32con.MB_YESNO | win32con.MB_ICONQUESTION)
@@ -16,7 +16,7 @@ def CallItRenderer(solver_test, total_steps, path,step):
         os.makedirs(path)
 
     # Define species names
-    species_names = [s["name"] for s in solver_test.species]
+    species_names = [s["name"] for s in solver.species]
 
     # Define file paths for saved data
     data_files = {}
@@ -43,33 +43,33 @@ def CallItRenderer(solver_test, total_steps, path,step):
         data = {key: np.load(file) for key, file in data_files.items()}
     else:
         data = {key: [] for key in data_files}
-        for s in solver_test.species:
+        for s in solver.species:
             name = s["name"]
             data[f'x_{name}'].append(s["xp"].copy())
             data[f'v_{name}'].append(s["vp"].copy())
             data[f'rho_{name}'].append(s["rho"].copy())
 
-        data['E'].append(solver_test.E.copy())
-        data['B'].append(solver_test.B.copy())
-        data['t'].append(solver_test.t)
-        data['electric_energy'].append(solver_test.CalcEFieldEnergy())
-        data['energy_kin'].append(solver_test.CalcKinEnergery())
+        data['E'].append(solver.E.copy())
+        data['B'].append(solver.B.copy())
+        data['t'].append(solver.t)
+        data['electric_energy'].append(solver.CalcEFieldEnergy())
+        data['energy_kin'].append(solver.CalcKinEnergery())
 
         for _ in tqdm(range(total_steps), desc="Simulating", unit="step"):
             if step:
-                solver_test.step()
+                solver.step()
 
-            for s in solver_test.species:
+            for s in solver.species:
                 name = s["name"]
                 data[f'x_{name}'].append(s["xp"].copy())
                 data[f'v_{name}'].append(s["vp"].copy())
                 data[f'rho_{name}'].append(s["rho"].copy())
 
-            data['E'].append(solver_test.E.copy())
-            data['B'].append(solver_test.B.copy())
-            data['t'].append(solver_test.t)
-            data['electric_energy'].append(solver_test.CalcEFieldEnergy())
-            data['energy_kin'].append(solver_test.CalcKinEnergery())
+            data['E'].append(solver.E.copy())
+            data['B'].append(solver.B.copy())
+            data['t'].append(solver.t)
+            data['electric_energy'].append(solver.CalcEFieldEnergy())
+            data['energy_kin'].append(solver.CalcKinEnergery())
 
         # Save all data
         for key, values in data.items():

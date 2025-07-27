@@ -59,10 +59,9 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
     ax3.set_xlim(0, Nx_test)
     ax3.set_ylim(ymin_M, ymax_M)
 
-    #rho_line_test, = ax3.plot([], [], linestyle='dashed', color='g', label='rho (Implicit)')
-    #E_line_test, = ax3.plot([], [], linestyle='dashed', color='r', label='E_x (Implicit)')
-    rho_line_test=[]
-    E_line_test=[]
+    rho_line_test, = ax3.plot([], [], linestyle='dashed', color='g', label='rho (Implicit)')
+    E_line_test, = ax3.plot([], [], linestyle='dashed', color='r', label='E_x (Implicit)')
+
     rho_line_ref, = ax3.plot([], [], linestyle='solid', color='black', label='rho (Explicit)')
     E_line_ref, = ax3.plot([], [], linestyle='dotted', color='m', label='E_x (Explicit)')
 
@@ -81,7 +80,10 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
     ax3.set_ylabel("Energy")
     ax4.set_title("Energy Development")
     ax4.plot(t_test_history, electric_energy_history_test, label='E Field Energy')
-    ax4.plot(t_test_history[1:], energy_kin_history_test[1:], label='Kinetic Energy')
+    ax4.plot(t_test_history, energy_kin_history_test, label='Kinetic Energy')
+    ax4.plot(t_ref_history, electric_energy_history_ref, label='E Field Energy (Explicit)', linestyle='solid')
+    ax4.plot(t_ref_history, energy_kin_history_ref, label='Kinetic Energy (Explicit)', linestyle='solid')
+
     ax4.legend()
 
     artists = {
@@ -121,7 +123,20 @@ def run_continuous(data_test, data_ref, sim_params, plot_params):
         grid = np.arange(Nx_test)
         art["rho_line_ref"].set_data(grid, data["rho_ref"][frame])
         art["E_line_ref"].set_data(grid, data["E_ref"][frame][0])
+        art["rho_line_test"].set_data(grid, data["rho_test"][frame])
+        art["E_line_test"].set_data(grid, data["E_test"][frame][0])
+
         art["text3"].set_text(f"t_ref = {data['t_ref'][frame]:.2f}")
+        if frame%30==0 and False:
+            frame_data = data["rho_ref"][frame]
+            print(f"Rho data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["E_ref"][frame][0]
+            print(f"Electric Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+        if frame % 30 == 0 and True:
+            frame_data = data["rho_test"][frame]
+            print(f"Rho data IMplicit: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["E_test"][frame][0]
+            print(f"Electric Field data IMplicit: Min: {frame_data.min()}, Max: {frame_data.max()}")
 
         return list(art.values())
 
@@ -149,8 +164,14 @@ def run_flipbook(data_test, data_ref, sim_params, plot_params):
         grid = np.arange(Nx_test)
         art["rho_line_ref"].set_data(grid, data["rho_ref"][frame])
         art["E_line_ref"].set_data(grid, data["E_ref"][frame][0])
+        art["rho_line_test"].set_data(grid, data["rho_test"][frame])
+        art["E_line_test"].set_data(grid, data["E_test"][frame][0])
         art["text3"].set_text(f"t_ref = {data['t_ref'][frame]:.2f}")
-        print(data["rho_ref"][frame])
+
+        frame_data = data["rho_ref"][frame]
+        print(f"Rho data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+        frame_data = data["E_ref"][frame][0]
+        print(f"Electric Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
 
         fig.canvas.draw()
 

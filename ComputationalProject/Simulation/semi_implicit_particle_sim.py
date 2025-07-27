@@ -27,13 +27,13 @@ class PIC_Solver(MathTools):
         self.combi = self.c * self.theta * self.dt
         self.Volume=np.prod(border)
         self.GridVolume=np.prod(gridNumbers)
-
+        self.weight=1/(self.Nx*self.dx)
 
 
         # Handling Multiple Species
         for sp in species:
-            sp["beta"] = sp["q"] * self.dt / (2 * sp["m"] * self.c)
-
+            sp["beta"] = sp["q"] * self.dt / (2 * sp["m"] * self.c)*self.weight
+            sp["q"]*=self.weight
 
             sp["rho"] = np.zeros([*gridNumbers])
 
@@ -77,7 +77,7 @@ class PIC_Solver(MathTools):
 
 
         """Analytics Initialization"""
-        # self.Ekin0 = np.sum(self.vp ** 2) * 0.5
+        self.Ekin0 = np.sum(self.species[0]["vp"] ** 2) * 0.5
         # self.charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Volume / Np  # particle charge
         #charge = self.omega_p ** 2 / (self.q_p / self.m_p) * self.epsilon_0 * self.Lx / self.Np  # particle charge
 
@@ -89,7 +89,7 @@ class PIC_Solver(MathTools):
     def deposit_charge(self,x_p,Np,q_p, ShapeFunction):
         """8 Volumes 3 Dimensional"""
         rho=self.ShaperParticle(x_p,Np,q_p, ShapeFunction)
-        #rho -= Np / self.Volume
+        rho *=self.weight
         return rho
 
     def interpolate_fields_to_particles(self,  x_p,field,Np, ShapeFunction):
@@ -103,7 +103,7 @@ class PIC_Solver(MathTools):
 
     def Evolver_R(self,vec,Field,beta,c):
 
-        return vec #Electro static
+        #return vec #Electro static
         gg=vec+beta/c *self.cross(vec,Field)+(beta/c)**2 *self.dot(vec,Field)*Field
         return gg/(1+(beta/c)**2*np.sum(np.abs(Field)**2, axis=0))
 
@@ -112,7 +112,7 @@ class PIC_Solver(MathTools):
 
     def matrix_lhs_equation(self, E_theta,species,combi,c):
 
-        #E_theta_p=self.interpolate_fields_to_particles(x_p,E_theta,ShapeFunction)
+
         mu_E_theta=np.zeros_like(E_theta,dtype=float)
         for ssp in species:
             beta_ssp=ssp["beta"]
@@ -160,7 +160,7 @@ class PIC_Solver(MathTools):
 
         first_sum_vec=q_p*self.ShaperParticle(xp,Np, R_vp, ShapeFunction)                  #[3,nx]
 
-        return first_sum_vec
+        #return first_sum_vec
         second_sum=_scalar=q_p*self.ShaperParticle(xp,Np, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
 
 
@@ -208,7 +208,7 @@ class PIC_Solver(MathTools):
     def Looper(self, x_i,vp,Np,beta,c, af):
         # Grid to Particle
         #self.E_theta= np.zeros_like(self.E_theta)
-        self.B= np.zeros_like(self.B)
+        #self.B= np.zeros_like(self.B)
 
         E_theta_p = self.interpolate_fields_to_particles(x_i,self.E_theta,Np, af)  # E
         Bp = self.interpolate_fields_to_particles(x_i, self.B, Np,af)  # B
@@ -257,6 +257,8 @@ class PIC_Solver(MathTools):
         rhs = self.matrix_rhs_equation(self.E, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
         self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.species, combi, c)
 
+
+
         #self.E_theta[0] = self.binomial_filter(self.E_theta[0])
 
 
@@ -279,6 +281,8 @@ class PIC_Solver(MathTools):
 
             count += 1
 
+
+
         for spp in self.species:
             q_spp = spp["q"]
             m_spp = spp["m"]
@@ -291,12 +295,11 @@ class PIC_Solver(MathTools):
             ## For Debugging not needed Elsewhere
             spp["rho"] = self.deposit_charge(spp["xp"],spp["Np"],q_spp, af)
 
-
-
-        self.E_prev = self.E
         # Update Fields
         self.E = (self.E_theta - (1 - self.theta) * self.E) / self.theta  # For all Theta
-        #self.B -= c * c * self.curl(self.E_theta)
+        self.B -= c * c * self.curl(self.E_theta)
+
+
         self.t += self.dt
 
 

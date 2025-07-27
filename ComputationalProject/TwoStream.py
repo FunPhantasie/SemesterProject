@@ -47,7 +47,7 @@ class twostream1D(PIC_Solver):
                 "beta_mag_perp": 0,
                 "beta": None,
                 "NPpCell": NPpCell,
-                "Np":Np
+                "Np":Np,
             },]
 
 
@@ -138,7 +138,7 @@ def initialize_two_stream1D(Lx, Np,B, amplitude=0.01):
     return xp, vp,B
 def sample_maxwellian_anisotropic(vth_par, Np):
     # Sampling für anisotrope Maxwell-Verteilung (par = x, perp = y/z)
-    return 0
+
     vx = np.random.normal(loc=0.0, scale=vth_par, size=Np)
     return vx
 
@@ -149,7 +149,7 @@ border = 1
 gridpoints = 64 #Dx is border/grdipoints
 NPpCell = 20
 dt = 0.05
-t_end = 0.25
+t_end = 2
 total_steps = int(t_end / dt)
 
 
@@ -178,7 +178,6 @@ solver_ref.Ekin0 = np.sum(solver_ref.vp ** 2) * 0.5
 
 
 
-
 print("Chosen Parameters:")
 print(f"dx: {border/gridpoints:.6f}")
 print("Starting Parameters for Explicit Solver:")
@@ -187,7 +186,7 @@ solver_ref.weight_rho()
 print(f"Normalization Charge (qp): {solver_ref.charge:.6f}")
 print("Density (rho):")
 print(solver_ref.rho)
-print(solver_ref.species[0]["vp"][0])
+
 
 # ---------------------
 # Kompakte Parameterpakete
