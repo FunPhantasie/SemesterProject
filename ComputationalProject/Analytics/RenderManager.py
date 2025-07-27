@@ -78,4 +78,3 @@ def CallItRenderer(solver, total_steps, path,step):
         print("Simulation abgeschlossen und Daten gespeichert.")
 
     return data
-    return tuple(data[k] for k in sorted(data.keys()))

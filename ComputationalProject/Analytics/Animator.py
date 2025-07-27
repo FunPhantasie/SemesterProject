@@ -21,6 +21,7 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
     E_test_history = data_test["E"]
     electric_energy_history_test = data_test["electric_energy"]
     energy_kin_history_test = data_test["energy_kin"]
+    B_test_history = data_test["B"]
 
     x_ref_history_e = data_ref["x_e"]
     v_ref_history_e = data_ref["v_e"]
@@ -29,6 +30,7 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
     electric_energy_history_ref = data_ref["electric_energy"]
     energy_kin_history_ref = data_ref["energy_kin"]
     E_ref_history = data_ref["E"]
+    B_ref_history = data_ref["B"]
 
     # Subplots
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10), sharey=False)
@@ -61,9 +63,11 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
 
     rho_line_test, = ax3.plot([], [], linestyle='dashed', color='g', label='rho (Implicit)')
     E_line_test, = ax3.plot([], [], linestyle='dashed', color='r', label='E_x (Implicit)')
+    bz_line_test, = ax3.plot([], [], linestyle='dashed', color='b', label='B_z (Implicit)')
 
     rho_line_ref, = ax3.plot([], [], linestyle='solid', color='black', label='rho (Explicit)')
     E_line_ref, = ax3.plot([], [], linestyle='dotted', color='m', label='E_x (Explicit)')
+    bz_line_ref, = ax3.plot([], [], linestyle='solid', color='r', label='B_z (Explicit)')
 
     text3 = ax3.text(0.02, 0.95, '', transform=ax3.transAxes)
     ax3.set_title("Charge Density and Electric Field")
@@ -90,7 +94,8 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
         "sc1_a": sc1_a, "sc1_b": sc1_b, "sc2_a": sc2_a, "sc2_b": sc2_b,
         "text1": text1, "text2": text2, "text3": text3,
         "rho_line_ref": rho_line_ref, "E_line_ref": E_line_ref,
-        "rho_line_test":rho_line_test, "E_line_test": E_line_test
+        "rho_line_test":rho_line_test, "E_line_test": E_line_test,
+        "bz_line_test": bz_line_test,"bz_line_ref": bz_line_ref
     }
 
     data = {
@@ -98,7 +103,8 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
         "x_ref": x_ref_history_e, "v_ref": v_ref_history_e,
         "t_test": t_test_history, "t_ref": t_ref_history,
         "rho_ref": rho_ref_history_e, "E_ref": E_ref_history,
-        "rho_test":rho_test_history_e,"E_test":E_test_history
+        "rho_test":rho_test_history_e,"E_test":E_test_history,
+        "B_test": B_test_history,"B_ref": B_ref_history
     }
 
     return fig, artists, data
@@ -125,6 +131,10 @@ def run_continuous(data_test, data_ref, sim_params, plot_params):
         art["E_line_ref"].set_data(grid, data["E_ref"][frame][0])
         art["rho_line_test"].set_data(grid, data["rho_test"][frame])
         art["E_line_test"].set_data(grid, data["E_test"][frame][0])
+        art["bz_line_test"].set_data(grid, data["B_test"][frame][2])
+        art["bz_line_ref"].set_data(grid, data["B_ref"][frame][2])
+
+
 
         art["text3"].set_text(f"t_ref = {data['t_ref'][frame]:.2f}")
         if frame%30==0 and False:
@@ -166,12 +176,24 @@ def run_flipbook(data_test, data_ref, sim_params, plot_params):
         art["E_line_ref"].set_data(grid, data["E_ref"][frame][0])
         art["rho_line_test"].set_data(grid, data["rho_test"][frame])
         art["E_line_test"].set_data(grid, data["E_test"][frame][0])
-        art["text3"].set_text(f"t_ref = {data['t_ref'][frame]:.2f}")
+        art["bz_line_test"].set_data(grid, data["B_test"][frame][2])
+        art["bz_line_ref"].set_data(grid, data["B_ref"][frame][2])
 
-        frame_data = data["rho_ref"][frame]
-        print(f"Rho data: Min: {frame_data.min()}, Max: {frame_data.max()}")
-        frame_data = data["E_ref"][frame][0]
-        print(f"Electric Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+        art["text3"].set_text(f"t_ref = {data['t_ref'][frame]:.2f}")
+        if True:
+            frame_data = data["rho_ref"][frame]
+            print(f"Rho data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["E_ref"][frame][0]
+            print(f"Electric Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["B_ref"][frame][2]
+            print(f"Magnetic Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+        if False:
+            frame_data = data["rho_test"][frame]
+            print(f"Rho data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["E_test"][frame][0]
+            print(f"Electric Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
+            frame_data = data["B_test"][frame][2]
+            print(f"Magnetic Field data: Min: {frame_data.min()}, Max: {frame_data.max()}")
 
         fig.canvas.draw()
 

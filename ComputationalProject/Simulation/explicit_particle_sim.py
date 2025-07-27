@@ -148,6 +148,7 @@ class Explicit_PIC_Solver():
         curl_B = np.zeros_like(self.E)
         curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
         curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
+
         #self.E[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
 
         self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
