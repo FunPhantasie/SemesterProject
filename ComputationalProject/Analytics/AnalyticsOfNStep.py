@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib as mpl
 mpl.use('TkAgg')
 """
-Debugging to look at Statistic after Nsteps Steps
+!!!Warning Here Nothing Will be Saved only Data after N steps will be Shown!!!
+Usage Intention: Debugging to look at Statistic after a view Steps (n) 
 """
 
 
@@ -57,8 +58,8 @@ def run(solver_test,solver_ref,total_steps,t_end):
     ax2.plot(grid_indices, rho_test, linestyle='dashed', label='rho (Implicit)', color='g')
     ax2.plot(grid_indices, B_x, linestyle='dashed', label='B_x (Implicit)', color='r')
     ax2.plot(grid_indices, E_test_x, linestyle='solid', label='E_x (Implicit)', color='black')
-    ax2.plot(grid_indices, E_test_y, linestyle='solid', label='E_y (Implicit)', color='blue')
-    ax2.plot(grid_indices, E_test_z, linestyle='solid', label='E_z (Implicit)', color='magenta')
+    #ax2.plot(grid_indices, E_test_y, linestyle='solid', label='E_y (Implicit)', color='blue')
+    #ax2.plot(grid_indices, E_test_z, linestyle='solid', label='E_z (Implicit)', color='magenta')
     #ax2.plot(grid_indices, rho_ref, linestyle='solid', label='rho (Explicit)', color='black')
     #ax2.plot(grid_indices, E_ref, linestyle='dotted', label='E_x (Explicit)', color='magenta')
 
