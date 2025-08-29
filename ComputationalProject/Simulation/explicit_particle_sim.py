@@ -17,11 +17,22 @@ class Explicit_PIC_Solver():
         self.t = 0.0
 
         self.x = self.dx * np.arange(self.Nx)
+        """
+        Plasma Params
+        N = NG * PPC  # total number of particles
+        WP = 1.  # Plasma frequency
+        QM = -1.  # Charge/mass ratio; normalized to to electron mass
+        V0 = 0.5  # 0.9 # Stream velocity
+        VT = 0.0000001  # Thermal speed
+        """
         # self.charge =self.omega_p ** 2 / self.qDm * self.epsilon_0 * self.Lx / self.Np *
         self.qDm = -1
         self.omega_p = 1
         self.epsilon_0 = 1
-        self.charge = self.qDm * 1/(self.Nx * self.dx)#self.qDm/(1) *self.dx/self.Np*self.Lx
+        # olde self.charge = self.qDm * 1/(self.Nx * self.dx) #self.qDm/(1) *self.dx/self.Np*self.Lx
+
+        self.charge=self.omega_p ** 2 / (self.qDm * self.Np / self.Lx)
+        self.back_charge_density=-self.charge * self.Np / self.Lx
 
         self.E = np.zeros([3, self.Nx])
         self.B = np.zeros([3, self.Nx])

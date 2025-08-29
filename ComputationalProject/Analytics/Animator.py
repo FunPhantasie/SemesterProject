@@ -6,7 +6,7 @@ import matplotlib as mpl
 mpl.use('TkAgg')
 
 def setup_plot(data_test, data_ref, sim_params, plot_params):
-    total_steps, t_end, Nx_test, Np_test, Np_ref = sim_params
+    total_steps, dt, Nx_test, Np_test, Np_ref = sim_params
     ymin, ymax = plot_params["stream_limits"]
     xmin_im, xmax_im = plot_params["xlims_implicit"]
     xmin_ex, xmax_ex = plot_params["xlims_explicit"]
@@ -77,7 +77,7 @@ def setup_plot(data_test, data_ref, sim_params, plot_params):
 
 
     # Energy Plot
-    ax4.set_xlim(0, t_end)
+    ax4.set_xlim(0, dt*total_steps)
     ax4.set_ylim(ymin_E, ymax_E)
     ax4.set_title("Energy vs Time")
     ax4.set_xlabel("Time")
