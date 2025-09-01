@@ -44,7 +44,7 @@ class MathTools():
         for index in range(3):
 
             rolledFor = np.roll(A[index], shift=-1)  # Shift along x-axis
-            rolledBack = np.roll(A[index], shift=1)  # Shift along y-axis
+            rolledBack = np.roll(A[index], shift=1)  # Shift along x-axis
             lap_A[index] = (rolledFor + rolledBack - 2 * A[index]) / (dk ** 2)
         return lap_A
 
