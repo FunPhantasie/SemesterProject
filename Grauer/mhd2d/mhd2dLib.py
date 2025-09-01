@@ -15,11 +15,14 @@ class RealSpaceGrid:
         self.x_val, self.y_val = jnp.meshgrid(xx, xx)
 
 class FourierSpaceGrid:
-    def __init__(self, N):
+    def __init__(self, Nx,Ny):
         dk = 1
-        kk = dk * jnp.concatenate((jnp.arange(0, N // 2), jnp.arange(-N // 2, 0)))
-        self.kx, self.ky = jnp.meshgrid(kk, kk)
-        self.k_max = float(N) / 3.0
+        kk_x = dk * jnp.concatenate((jnp.arange(0, Nx // 2), jnp.arange(-Nx // 2, 0)))
+
+        kk_y = dk * jnp.concatenate((jnp.arange(0, Ny // 2), jnp.arange(-Ny // 2, 0)))
+        self.kx, self.ky = jnp.meshgrid(kk_x, kk_y)
+        self.k_max_x = float(Nx) / 3.0
+        self.k_max_y = float(Ny) / 3.0
 
         self.k2 = self.kx ** 2 + self.ky ** 2
         self.k2 = self.k2.at[0, 0].set(1.0)
@@ -66,7 +69,7 @@ class MHD2D(RealSpaceGrid, FourierSpaceGrid):
         self.om_F = jnp.fft.fft2(jnp.stack([omp,omm],axis=0),axes=(-2,-1))
 
     def delta_F(self):
-        dy = dx = self.dx
+        dy , dx = self.dx,self.dy
         xb = yb = 0
         return 1. / (dx * jnp.exp(1.j * self.kx * xb) * dy * jnp.exp(1.j * self.ky * yb))
 

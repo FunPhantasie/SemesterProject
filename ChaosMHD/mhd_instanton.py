@@ -150,12 +150,12 @@ class MHDInstanton2D(TimeGrid, RealSpaceGrid2D, FourierSpaceGrid2D):
         return -0.5 * self.grad_F(jnp.fft.rfft(jnp.fft.irfft(u_F) ** 2)) + self.convolution_F(self.chi_F(), p_F)
 
     def RHS_p_F(self, p_F, u_F):
-        RHS_p_F = +self.multiply_F(u_F, self.grad_F(p_F))
+        RHS_p_F = -self.multiply_F(u_F, self.grad_F(p_F))
         return RHS_p_F
 
     def step_forward_F(self, p_F, u_F, dt):
         RHS = self.RHS_u_F(p_F, u_F)
-        ret = self.prop_F(dt) * (u_F + RHS * dt)
+        ret = self.prop_F(dt) * (u_F - RHS * dt)
         return ret
 
     def step_adjoint_F(self, p_F, u_F, dt):
