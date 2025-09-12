@@ -1,5 +1,6 @@
 import numpy as np
-
+from scipy import sparse
+from scipy.sparse import linalg
 
 """
 Solver with the same Scheme as the Electro Statitic Code for two Streams.
@@ -7,16 +8,16 @@ In Case of no normalisation of Grid Charge the E field is the same as in the imp
 """
 class Explicit_PIC_Solver():
 
-    def __init__(self, border=1, gridpoints=128, NPpCell=20, dt=0.1):
-        self.Nx = gridpoints
-        self.dt = dt
-        self.Lx = border
+    def __init__(self, L=1, NG=128, PPC=20, DT=0.1):
+        self.Nx = NG #gridpoints
+        self.dt = DT
+        self.Lx = L #Border
         self.dx = self.Lx / self.Nx
-        self.NPpCell = NPpCell
+        self.NPpCell = PPC #NPpCell
         self.Np = self.Nx * self.NPpCell
         self.t = 0.0
 
-        self.x = self.dx * np.arange(self.Nx)
+        self.xg = np.linspace(0, self.Lx - self.dx, self.Nx) + 0.5 * self.dx# grid at cell centers
         """
         Plasma Params
         N = NG * PPC  # total number of particles
@@ -25,16 +26,16 @@ class Explicit_PIC_Solver():
         V0 = 0.5  # 0.9 # Stream velocity
         VT = 0.0000001  # Thermal speed
         """
-        # self.charge =self.omega_p ** 2 / self.qDm * self.epsilon_0 * self.Lx / self.Np *
+        _Poisson = sparse.spdiags(([1, -2, 1] * np.ones((1, self.Nx - 1), dtype=int).T).T, \
+                         [-1, 0, 1], self.Nx - 1, self.Nx - 1)
+        self.Poisson = _Poisson.tocsc()
         self.qDm = -1
         self.omega_p = 1
-        self.epsilon_0 = 1
-        # olde self.charge = self.qDm * 1/(self.Nx * self.dx) #self.qDm/(1) *self.dx/self.Np*self.Lx
-
         self.charge=self.omega_p ** 2 / (self.qDm * self.Np / self.Lx)
         self.back_charge_density=-self.charge * self.Np / self.Lx
+        # olde self.charge = self.qDm * 1/(self.Nx * self.dx) #self.qDm/(1) *self.dx/self.Np*self.Lx
 
-        self.E = np.zeros([3, self.Nx])
+        self.Eg = np.zeros([3, self.Nx])
         self.B = np.zeros([3, self.Nx])
         self.rho = np.zeros(self.Nx)
         self.xp =np.zeros( self.Np)
@@ -42,45 +43,44 @@ class Explicit_PIC_Solver():
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
+        static = True
+        self.magnetic_field=False
+        if static:
+            self.calc_E = self.calc_E_static
+        else:
+            self.calc_E = self.calc_E_Maxwell
+        if self.magnetic_field:
+            self.updateVelcotiy=self.boris
+        else:
+            self.updateVelcotiy = self.uvel
 
 
 
-
-        """Not Used For Calculation just for Plotting"""
-        sp = [{
-            "name": "e",
-            "q": -1.0,
-            "m": 1.0,
-            "beta_mag_par": 0,
-            "beta_mag_perp": 0,
-            "beta": None,
-            "NPpCell": NPpCell,
-            "Np": self.Np
-        },]
-
-        self.species=sp
 
     def step(self):
         self.weight_rho()
         #Electro Magnetic
         # ------------------#
         self.weight_J()
-
+        self.weightStress()
         #------------------#
         self.calc_E()
-        self.calc_B()
+
+        if self.magnetic_field: self.calc_B()
         self.force()
-        self.boris(self.dt)
+        self.updateVelcotiy(self.dt)
         self.step_x(self.dt)
         self.boundary()
         self.t += self.dt
-        self.species[0]["xp"] = self.xp
-        self.species[0]["vp"] = self.vp
-        self.species[0]["rho"] = self.rho
+
 
     def step_x(self, dt_):
 
         self.xp += dt_ * self.vp[0, :]
+    def uvel(self, dt_):
+        self.vp +=  self.qDm * self.Ep * dt_
+
+
 
     def boris(self, dt_):
         a = 0.5 * dt_ * self.qDm
@@ -104,17 +104,17 @@ class Explicit_PIC_Solver():
 
     def interpolation_rho_to_grid(self):
         for p in range(self.Np):
-            zeta = self.xp[p] / self.dx
-            i = int(zeta)
+            zeta = self.xp[p] / self.dx-0.5 #Cell Centers
+            i = np.floor(zeta).astype(int) #Int rundet zur 0 bei neg numbers
             ip1 = (i + 1) % self.Nx
             diff = zeta - i
             self.rho[i] += 1 - diff
             self.rho[ip1] += diff
 
     def interpolation_to_part(self, part_force, grid_force):
-        for p in range(self.Np):
-            zeta = self.xp[p] / self.dx
-            i = int(zeta)
+            for p in range(self.Np):
+                zeta = self.xp[p] / self.dx-0.5 #Cell Centers
+                i = np.floor(zeta).astype(int) #Int rundet zur 0 bei neg numbers
             ip1 = (i + 1) % self.Nx
             diff = zeta - i
             part_force[:, p] = (1 - diff) * grid_force[:, i] + diff * grid_force[:, ip1]
@@ -122,60 +122,78 @@ class Explicit_PIC_Solver():
     def weight_rho(self):
         self.rho *= 0
         self.interpolation_rho_to_grid()
-        self.rho*=self.charge
-        #self.rho+=1/(4*np.pi)
-        #self.rho -= self.rhostart
-        #self.rho -= self.Np / self.Lx
-        #self.rho *= 2 * self.NPpCell * self.charge / self.dx
-
-        # rho -= self.Np / self.Nx its not than if all moments are the same
-        #Ist kompliziert weil geklaut aber eigentlich nur  2 *omega^2 m/q *epsilon´
-        # print(2 * self.NPpCell * self.charge / (self.Volume/self.GridVolume) )
+        self.rho*=self.charge/self.dx
+        self.rho+=self.back_charge_density
 
     def force(self):
-        self.interpolation_to_part(self.Ep, self.E)
+        self.interpolation_to_part(self.Ep, self.Eg)
         self.interpolation_to_part(self.Bp, self.B)
 
     def weight_J(self):
         self.J = np.zeros([3, self.Nx])
         for p in range(self.Np):
-            zeta = self.xp[p] / self.dx
-            i = int(zeta) % self.Nx
+            zeta = self.xp[p] / self.dx - 0.5  # Cell Centers
+            i = np.floor(zeta).astype(int)
             ip1 = (i + 1) % self.Nx
             diff = zeta - i
             for d in range(3):
                 self.J[d, i] += (1 - diff) * self.vp[d, p]
                 self.J[d, ip1] += diff * self.vp[d, p]
-        self.J *= self.charge
-    def calc_E(self):
+        self.J *= self.charge/self.dx
+    def weightStress(self):
+        self.P = np.zeros([3, self.Nx])
+        for p in range(self.Np):
+            zeta = self.xp[p] / self.dx - 0.5  # Cell Centers
+            i = np.floor(zeta).astype(int)
+            ip1 = (i + 1) % self.Nx
+            diff = zeta - i
+            for d in range(3):
+                self.P[d, i] += (1 - diff) * self.vp[d, p]*self.vp[d, p]
+                self.P[d, ip1] += diff * self.vp[d, p]*self.vp[d, p]
+        self.P *= self.charge / self.dx
+    def calc_E_static(self):
         """
+        #---Weicht ab--
         rhohat = np.fft.rfft(self.rho)
         kx = 2 * np.pi / self.Lx * np.arange(rhohat.size)
         with np.errstate(divide='ignore', invalid='ignore'):
             tmp = np.where(kx * kx > 0, rhohat / (1j * kx), 0.)
-        self.E[0, :] = np.fft.irfft(tmp)
+        self.Eg[0, :] = np.fft.irfft(tmp)
         """
+        Phi = linalg.spsolve(self.Poisson, -self.dx ** 2 * self.rho[0:self.Nx - 1])
+        Phi = np.concatenate((Phi, [0])) #fix BC
+        self.Eg[0, :] = (np.roll(Phi, 1) - np.roll(Phi, -1)) / (2 * self.dx)
+
+
+
+    def calc_E_Maxwell(self):
         # Faraday's law: dE/dt = curl B - J
-        curl_B = np.zeros_like(self.E)
+        curl_B = np.zeros_like(self.Eg)
         curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
         curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
 
-        #self.E[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
+        # self.Eg[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
 
-        self.E[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
-
+        self.Eg[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
     def calc_B(self):
         # dB/dt = - curl E
         curl_E = np.zeros_like(self.B)
-        curl_E[1, 1:-1] = -(self.E[2, 2:] - self.E[2, :-2]) / (2 * self.dx)
-        curl_E[2, 1:-1] = (self.E[1, 2:] - self.E[1, :-2]) / (2 * self.dx)
+        curl_E[1, 1:-1] = -(self.Eg[2, 2:] - self.Eg[2, :-2]) / (2 * self.dx)
+        curl_E[2, 1:-1] = (self.Eg[1, 2:] - self.Eg[1, :-2]) / (2 * self.dx)
         self.B[:, 1:-1] += self.dt * curl_E[:, 1:-1]
 
     def boundary(self):
         self.xp = np.mod(self.xp, self.Lx)
 
-    def CalcKinEnergery(self):
-        return (0.5 * np.sum(self.vp ** 2) / self.Ekin0 )
+    def calcEnergy(self):
 
-    def CalcEFieldEnergy(self):
-        return (0.5 * np.sum(self.E ** 2))
+        return 0.5 * (self.Eg ** 2).sum() * self.dx
+
+
+    def calcPotEnergy(self):
+
+        return (0.5 * np.sum(self.Eg ** 2)*self.dx)
+    def calcKinEnergy(self):
+        return 0.5 * self.charge / self.qDm * np.sum(self.vp ** 2)
+    def calcMomentum(self):
+        return (self.charge / self.qDm* np.sum(self.vp)  )

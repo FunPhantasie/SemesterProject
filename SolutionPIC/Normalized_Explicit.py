@@ -55,7 +55,7 @@ plt.ion()
 L = 2.5 * np.pi  # 20*np.pi #20*np.pi # Domain size
 DT = 0.005 * 10  # 0.005 # Time step
 NT = 500  # 50000  # Number of time steps
-TOut = round(NT / 25)  # Output period
+TOut = round(NT / 50)  # Output period
 verbose = True
 NG = 40  # 80 #320  # Number of grid cells
 PPC = 20  # number of particles per cell
@@ -74,7 +74,7 @@ dx = L / NG  # Grid step
 # with ES=true, E from Gauss
 # with ES=false, E from Ampere
 # ES= True
-ES = False
+ES = True
 
 maxE = []
 
@@ -140,14 +140,14 @@ for it in range(NT + 1):  # p3
     fraz1 = 1 - np.abs(xp / dx - g1 - 0.5)
     fraz = np.concatenate((fraz1, 1 - fraz1))
     # fix boundary conditions for the accumulation
-    g[np.where(g < 0)] += NG
+    g[np.where(g < 0)] += NG #Konvertiert zu int
     g[np.where(g > NG - 1)] -= NG
 
     # particle (N) contribution to grid points (NG)
     # syntax: csc_matrix((data, (row, col)), shape=(Nrow, Ncol))
     # mat.toarray()[p] tells you to which grid point the particle p contributes
     mat = sparse.csc_matrix((fraz, (p, g)), shape=(Np, NG))
-
+    #Gewichtung Matrix
     # rho_e: electron density
     # mat.toarray().sum(axis=0)  gives ~ particles per cell
     # mat.toarray().sum(axis=0).sum(axis=0) is the number of particles

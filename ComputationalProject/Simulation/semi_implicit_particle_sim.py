@@ -3,6 +3,99 @@ from scipy.sparse.linalg import gmres, LinearOperator
 from .helper import MathTools
 from scipy.ndimage import gaussian_filter
 
+class twostream1D(Semi_PIC_Solver):
+    def __init__(self,border=1,NG=1,PPC=20,dt=0.1,):
+
+        #Parameter Conditions
+        self.Lx = border  # Plasma Space/Borders
+        self.Nx = NG  # Number of grid points
+        self.totalN=3*self.Nx #Total Number of Gridppoints (3 Could be Wrong)
+
+
+
+        # Resulting Connected Conditions
+        self.dx = self.Lx / self.Nx
+
+        self.E = np.zeros([3, self.Nx])  # E[0]
+        self.B = np.zeros([3, self.Nx])  # B[2]
+        self.E_theta = np.zeros([3, self.Nx])
+
+        """
+        All The Fields and Moments
+        """
+        Np = PPC * self.Nx  # Total Particles
+
+        species=[{
+                "name": "e",
+                "q": -1.0,
+                "m": 1.0,
+                "beta_mag_par": 0,
+                "beta_mag_perp": 0,
+                "beta": None,
+                "NPpCell": PPC,
+                "Np":Np,
+            },]
+
+
+        super().__init__(dimension=1, dt=dt, stepssize=self.dx,border=(self.Lx,),gridNumbers=(self.Nx,),species=species )
+
+
+
+
+    def ShaperParticle(self, x_p,Np, prefaktor, ShapeFunction,toParticle=False):
+        # Validate prefaktor shape and assign helper
+        if toParticle:
+            helper = np.zeros([3, Np])
+
+        # Initialize helper based on prefaktor type
+
+        else:
+            if np.isscalar(prefaktor):
+                is_scalar = True
+                is_vector = False
+                is_single_value = True
+            else:
+                is_scalar = prefaktor.shape == (Np,)
+                is_vector = prefaktor.shape == (3, Np)
+                is_single_value = prefaktor.shape == (1,)
+            if not (is_scalar or is_vector):
+                raise ValueError(f"prefaktor shape {prefaktor.shape} is invalid. Expected (Np,) or (3, Np).")
+
+            helper = (np.zeros([3, self.Nx]) if is_vector else np.zeros(self.Nx))
+
+
+
+        # Process each particle
+        for particle_index in range(Np):
+            # Particle position in grid coordinates
+            x = x_p[ particle_index]
+
+            xn = (x / self.dx)
+            ix= np.floor(xn) # int Verhalten bei Negativen Zahlen Falsch
+            # Arround The World
+            # Muss Rho Volumes zuordnen
+
+            # Compute weights for all 8 grid points at once
+            for ax in [0, 1]:
+                # Periodic boundary conditions
+                grid_x = np.mod(ix + ax, self.Nx)
+                # Weight based on linear distance (CIC)
+                wx = 1 - abs(xn - (ix + ax))
+
+                weight = wx
+
+                # Apply shape function and update grid
+                if toParticle:
+                    helper[:, particle_index] += prefaktor[:, grid_x] * ShapeFunction(weight)
+                elif is_single_value:
+                    helper[grid_x] += prefaktor * ShapeFunction(weight)
+                elif is_scalar:
+                    helper[grid_x] += prefaktor[particle_index] * ShapeFunction(weight)
+                else:
+                    helper[:, grid_x] += prefaktor[:, particle_index] * ShapeFunction(weight)
+
+        return helper
+
 class PIC_Solver(MathTools):
 
     def __init__(self, dimension,dt,stepssize,border,gridNumbers,species):

@@ -1,7 +1,8 @@
 import numpy as np
 
 from Simulation.explicit_particle_sim import Explicit_PIC_Solver
-from Simulation.semi_implicit_particle_sim import PIC_Solver
+#from Simulation.semi_implicit_particle_sim import PIC_Solver as Semi_PIC_Solver
+from Simulation.solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
 
 from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
 
@@ -9,108 +10,12 @@ from Analytics.RenderManager import CallItRenderer
 from Analytics.Animator import run_continuous
 from Analytics.Animator import run_flipbook
 
-"""
-Initnitialisation of the Implicit Probelm of the electromagnetic two streams poblem.
-
-Choose Params
-"""
-
-
-
-class twostream1D(PIC_Solver):
-    def __init__(self,border=1,NG=1,PPC=20,dt=0.1,):
-
-        #Parameter Conditions
-        self.Lx = border  # Plasma Space/Borders
-        self.Nx = NG  # Number of grid points
-        self.totalN=3*self.Nx #Total Number of Gridppoints (3 Could be Wrong)
-
-
-
-        # Resulting Connected Conditions
-        self.dx = self.Lx / self.Nx
-
-        self.E = np.zeros([3, self.Nx])  # E[0]
-        self.B = np.zeros([3, self.Nx])  # B[2]
-        self.E_theta = np.zeros([3, self.Nx])
-
-        """
-        All The Fields and Moments
-        """
-        Np = PPC * self.Nx  # Total Particles
-
-        species=[{
-                "name": "e",
-                "q": -1.0,
-                "m": 1.0,
-                "beta_mag_par": 0,
-                "beta_mag_perp": 0,
-                "beta": None,
-                "NPpCell": PPC,
-                "Np":Np,
-            },]
-
-
-        super().__init__(dimension=1, dt=dt, stepssize=self.dx,border=(self.Lx,),gridNumbers=(self.Nx,),species=species )
+import matplotlib.pyplot as plt
 
 
 
 
-    def ShaperParticle(self, x_p,Np, prefaktor, ShapeFunction,toParticle=False):
-        # Validate prefaktor shape and assign helper
-        if toParticle:
-            helper = np.zeros([3, Np])
-
-        # Initialize helper based on prefaktor type
-
-        else:
-            if np.isscalar(prefaktor):
-                is_scalar = True
-                is_vector = False
-                is_single_value = True
-            else:
-                is_scalar = prefaktor.shape == (Np,)
-                is_vector = prefaktor.shape == (3, Np)
-                is_single_value = prefaktor.shape == (1,)
-            if not (is_scalar or is_vector):
-                raise ValueError(f"prefaktor shape {prefaktor.shape} is invalid. Expected (Np,) or (3, Np).")
-
-            helper = (np.zeros([3, self.Nx]) if is_vector else np.zeros(self.Nx))
-
-
-
-        # Process each particle
-        for particle_index in range(Np):
-            # Particle position in grid coordinates
-            x = x_p[ particle_index]
-
-            xn = (x / self.dx)
-            ix= np.floor(xn) # int Verhalten bei Negativen Zahlen Falsch
-            # Arround The World
-            # Muss Rho Volumes zuordnen
-
-            # Compute weights for all 8 grid points at once
-            for ax in [0, 1]:
-                # Periodic boundary conditions
-                grid_x = np.mod(ix + ax, self.Nx)
-                # Weight based on linear distance (CIC)
-                wx = 1 - abs(xn - (ix + ax))
-
-                weight = wx
-
-                # Apply shape function and update grid
-                if toParticle:
-                    helper[:, particle_index] += prefaktor[:, grid_x] * ShapeFunction(weight)
-                elif is_single_value:
-                    helper[grid_x] += prefaktor * ShapeFunction(weight)
-                elif is_scalar:
-                    helper[grid_x] += prefaktor[particle_index] * ShapeFunction(weight)
-                else:
-                    helper[:, grid_x] += prefaktor[:, particle_index] * ShapeFunction(weight)
-
-        return helper
-
-def initialize_two_stream1D(Lx, Np,B,VT=0.005,V0=0.05, amplitude=0.01):
+def initialize_two_stream1D(Lx, Np,B,VT=0.005,V0=0.05, XP1=0.01,mode=1):
     """
     Initialize particle positions and velocities for a two-stream instability.
 
@@ -132,14 +37,21 @@ def initialize_two_stream1D(Lx, Np,B,VT=0.005,V0=0.05, amplitude=0.01):
     xp2 = 2 * Lx / Np * np.arange(Np // 2)
 
 
-    vp1 = V0 + amplitude * np.sin(2 * np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
-    vp2 = -V0 - amplitude * np.sin(2 * np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
+    vp1 = V0 + XP1 * np.sin(2 *mode* np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
+    vp2 = -V0 - XP1 * np.sin(2 *mode* np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
     xp = np.concatenate([xp1, xp2])
     vp_x = np.concatenate([vp1, vp2])
     vp[0, :] = vp_x
     #B[2, ...] = 1
+    print("Non Normalized Sampling")
     return xp, vp,B
-def normalized_init(Lx, Np,B,VT=0.005,V0=0.05, XP1=0.01,mode=1):
+def sample_maxwellian_anisotropic(vth_par, Np):
+    # Sampling für anisotrope Maxwell-Verteilung (par = x, perp = y/z)
+
+    vx = np.random.normal(loc=0.0, scale=vth_par, size=Np)
+    return vx
+
+def normalized_initialize_two_stream1D(Lx, Np,VT=0.005,V0=0.05, XP1=0.01,mode=1,seed=42):
     """
     Initialize particle positions and velocities for a two-stream instability.
     Keydifference
@@ -155,24 +67,26 @@ def normalized_init(Lx, Np,B,VT=0.005,V0=0.05, XP1=0.01,mode=1):
     :param XP1: Amplitude of space perturbation
     :return:
     """
+    B  = np.zeros([3, Np])
     vp = np.zeros([3, Np])
     xp = np.linspace(0, Lx - Lx / Np, Np)
     xp += XP1 * (Lx / Np) * np.sin(2 * np.pi * xp / Lx * mode) #Pertubation in Postion Space
     xp = np.mod(xp, L)
-
-    vp_x = VT * (1 - VT ** 2) ** (-0.5) * np.random.randn(Np) #Pertubation Velocity
+    rng = np.random.default_rng(seed)
+    vp_x = VT * (1 - VT ** 2) ** (-0.5) * rng.standard_normal(Np) #Pertubation Velocity
     #vx = np.random.normal(loc=0.0, scale=vth_par, size=Np) Should work same as randn*vp
     #Its done Relativistic momentum:  p=γmv m=1
     pm = np.arange(Np)
     pm = 1 - 2 * np.mod(pm + 1, 2) #-1,1,-1,1
     vp_x += pm * (V0 * (1 - V0 ** 2) ** (-0.5)) #Base Velocity One BAckwards One Forward
     vp[0, :] = vp_x
-    return xp, vp,B
-def sample_maxwellian_anisotropic(vth_par, Np):
-    # Sampling für anisotrope Maxwell-Verteilung (par = x, perp = y/z)
+    # RNG
 
-    vx = np.random.normal(loc=0.0, scale=vth_par, size=Np)
-    return vx
+
+
+
+
+    return xp, vp
 
 
 """
@@ -197,12 +111,7 @@ PPC = 20  # number of particles per cell
 N = NG * PPC  # total number of particles
 """
 
-L = 2.5 * np.pi
-DT = 0.005 * 10
-NT=500
-doPlots = True
-NG = 40  # 80 #320  # Number of grid cells /gridpoints
-PPC = 20  # number of particles per cell
+
 
 
 """
@@ -234,18 +143,139 @@ d^2/d^2x^2+d^2/d^2y^2 phi
 mode = 3
 
 
-"""
-PLots 
-histEnergy, histPotE, histKinE, histMomentum, t = [], [], [], [], []
-"""
+L = 2.5 * np.pi
+NG = 40  # 80 #320  # Number of grid cells /gridpoints
+PPC = 20  # number of particles per cell
+
+DT = 0.005 * 10
+NT=500
 
 
+params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT)
+norm_inno = Solution_PIC(ES=False, **params_class) #'Innocenti'
+own_solver = Explicit_PIC_Solver(**params_class) # Me
 
-solver_ref = Explicit_PIC_Solver(L, NG, PPC, DT)
-solver_ref.xp, solver_ref.vp, solver_ref.B = initialize_two_stream1D(solver_ref.Lx, solver_ref.Np, solver_ref.B)
-# Referenzen aktualisieren
-solver_ref.species[0]["xp"] = solver_ref.xp
-solver_ref.species[0]["vp"] = solver_ref.vp
-solver_ref.species[0]["rho"] = solver_ref.rho
-solver_ref.Ekin0 = np.sum(solver_ref.vp ** 2) * 0.5
-solver_ref.step()
+params_init = dict(VT=0.0000001, V0=0.5, XP1=1.0, mode=1,seed=42)
+xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
+own_solver.xp, own_solver.vp= xp_helper,vp_helper
+norm_inno.xp, norm_inno.vp= xp_helper, vp_helper[0, :]
+
+# ======== SETTINGS ========
+stepview = 50   # show plots every 'stepview' steps
+# ==========================
+
+"""Plotting"""
+times = []
+
+# Historien
+energy_sol, kin_sol, mom_sol = [], [], []
+energy_ref, kin_ref, mom_ref = [], [], []
+
+rho_sol_hist, rho_ref_hist = [], []
+E_sol_hist,   E_ref_hist   = [], []
+J_sol_hist,   J_ref_hist   = [], []
+P_sol_hist,   P_ref_hist   = [], []
+
+for n in range(NT):
+    # Schritt machen
+    norm_inno.step()
+    own_solver.step()
+
+    # Zeit
+    times.append(norm_inno.t)
+
+    # Energies & Momentum
+    energy_sol.append(norm_inno.calcEnergy())
+    kin_sol.append(norm_inno.calcKinEnergy())
+    mom_sol.append(norm_inno.calcMomentum())
+
+    energy_ref.append(own_solver.calcEnergy())
+    kin_ref.append(own_solver.calcKinEnergy())
+    mom_ref.append(own_solver.calcMomentum())
+
+    rho_sol_hist.append(norm_inno.rho.copy())
+    J_sol_hist.append(norm_inno.J.copy())
+    E_sol_hist.append(norm_inno.Eg.copy())
+    P_sol_hist.append(norm_inno.P_exx.copy())
+
+    rho_ref_hist.append(own_solver.rho.copy())
+    J_ref_hist.append(own_solver.J[0,:].copy())   # nur x-Komponente
+    P_ref_hist.append(own_solver.P[0,:].copy())
+    E_ref_hist.append(own_solver.Eg[0,:].copy())
+
+    # ---- LIVE VIEW every 'stepview' steps ----
+    if (n + 1) % stepview == 0:
+        # --------- PLOTTEN ---------
+        fig, axs = plt.subplots(4, 2, figsize=(12, 13))
+
+        # Energie
+        axs[0,0].plot(times, energy_sol, label="Solution Energy")
+        axs[0,0].plot(times, energy_ref, "--", label="Explicit Energy")
+        axs[0,0].set_title("Field Energy")
+        axs[0,0].set_xlabel("time")
+        axs[0,0].set_ylabel("Energy")
+        axs[0,0].legend()
+
+        # Kinetische Energie
+        axs[0,1].plot(times, kin_sol, label="Solution Kinetic")
+        axs[0,1].plot(times, kin_ref, "--", label="Explicit Kinetic")
+        axs[0,1].set_title("Kinetic Energy")
+        axs[0,1].set_xlabel("time")
+        axs[0,1].set_ylabel("Kinetic Energy")
+        axs[0,1].legend()
+
+        # Impuls
+        axs[1,0].plot(times, mom_sol, label="Solution Momentum")
+        axs[1,0].plot(times, mom_ref, "--", label="Explicit Momentum")
+        axs[1,0].set_title("Momentum")
+        axs[1,0].set_xlabel("time")
+        axs[1,0].set_ylabel("Momentum")
+        axs[1,0].legend()
+
+        # rho (letzter Snapshot)
+        axs[1,1].plot(norm_inno.xg, rho_sol_hist[-1], label="Solution ρ")
+        axs[1,1].plot(own_solver.xg, rho_ref_hist[-1], "--", label="Explicit ρ")
+        axs[1,1].set_title("Charge density ρ (final)")
+        axs[1,1].set_xlabel("x")
+        axs[1,1].set_ylabel("ρ")
+        axs[1,1].legend()
+
+        """# J (letzter Snapshot)
+        axs[2,0].plot(sim.xg, J_sol_hist[-1], label="Solution Jx")
+        axs[2,0].plot(solver_ref.xg, J_ref_hist[-1], \"--\", label=\"Explicit Jx\")
+        axs[2,0].set_title(\"Current J (final)\")
+        axs[2,0].legend()"""
+
+        # E-Feld (letzter Snapshot) — ersetzt Jx-Panel
+        axs[2,0].plot(norm_inno.xg, E_sol_hist[-1], label="Solution E")
+        axs[2,0].plot(own_solver.xg, E_ref_hist[-1], "--", label="Explicit E")
+        axs[2,0].set_title("Electric field E (final)")
+        axs[2,0].set_xlabel("x")
+        axs[2,0].set_ylabel("E")
+        axs[2,0].legend()
+
+        # P (letzter Snapshot)
+        axs[2,1].plot(norm_inno.xg, P_sol_hist[-1], label="Solution Pxx")
+        axs[2,1].plot(own_solver.xg, P_ref_hist[-1], "--", label="Explicit Pxx")
+        axs[2,1].set_title("Stress Tensor P (final)")
+        axs[2,1].set_xlabel("x")
+        axs[2,1].set_ylabel("Pxx")
+        axs[2,1].legend()
+
+        # x–v Phase Space (Solution)
+        axs[3,0].scatter(norm_inno.xp, norm_inno.vp, s=2, alpha=0.6, label="Solution")
+        axs[3,0].set_title("Phase space (x–v) — Solution")
+        axs[3,0].set_xlabel("x")
+        axs[3,0].set_ylabel("v")
+        axs[3,0].legend()
+
+        # x–v Phase Space (Reference)
+        axs[3,1].scatter(own_solver.xp, own_solver.vp[0, :], s=2, alpha=0.6, label="Explicit")
+        axs[3,1].set_title("Phase space (x–v) — Explicit")
+        axs[3,1].set_xlabel("x")
+        axs[3,1].set_ylabel("v")
+        axs[3,1].legend()
+
+        plt.tight_layout()
+        plt.show()
+        plt.close(fig)   # close so the loop continues without piling windows
