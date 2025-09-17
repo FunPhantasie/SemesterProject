@@ -18,7 +18,7 @@ class TwoStreamPIC1D:
       - Only `step()` returns a diagnostics dict.
     """
 
-    def __init__(self, L, NG, PPC, DT, ES=False):
+    def __init__(self, L, NG, PPC, DT, ES=True):
         self.L  = float(L)
         self.NG = int(NG)
         self.PPC = int(PPC)
@@ -43,6 +43,11 @@ class TwoStreamPIC1D:
         self.P_exx = np.zeros(self.NG)
         self.rho_e = np.zeros(self.NG)
         self.Ep    = None
+
+        if self.ES:
+            self.calc_E=self._field_from_poisson
+        else:
+            self.calc_E=self._ampere_update
 
         _Poisson = sparse.spdiags(([1, -2, 1] * np.ones((1, NG - 1), dtype=int).T).T, \
                          [-1, 0, 1], NG - 1, NG - 1)
@@ -127,10 +132,7 @@ class TwoStreamPIC1D:
     # ---------------- main step ----------------
     def step(self):
         self._deposit_CIC()
-        if self.ES:
-            self._field_from_poisson()
-        else:
-            self._ampere_update()
+        self.calc_E()
         self._interp_E_to_particles()
         self._push_v()
         self._push_x()

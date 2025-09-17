@@ -8,7 +8,7 @@ In Case of no normalisation of Grid Charge the E field is the same as in the imp
 """
 class Explicit_PIC_Solver():
 
-    def __init__(self, L=1, NG=128, PPC=20, DT=0.1):
+    def __init__(self, L=1, NG=128, PPC=20, DT=0.1,ES=True):
         self.Nx = NG #gridpoints
         self.dt = DT
         self.Lx = L #Border
@@ -43,7 +43,7 @@ class Explicit_PIC_Solver():
         self.Ep = np.zeros([3, self.Np])
         self.Bp = np.zeros([3, self.Np])
 
-        static = True
+        static = ES
         self.magnetic_field=False
         if static:
             self.calc_E = self.calc_E_static
@@ -172,9 +172,9 @@ class Explicit_PIC_Solver():
         curl_B[1, 1:-1] = (self.B[2, 2:] - self.B[2, :-2]) / (2 * self.dx)
         curl_B[2, 1:-1] = -(self.B[1, 2:] - self.B[1, :-2]) / (2 * self.dx)
 
-        # self.Eg[:, 1:-1] += self.dt * ( - 4 * np.pi * self.J[:, 1:-1])
+        self.Eg[:, 1:-1] += self.dt * ( -  self.J[:, 1:-1])
 
-        self.Eg[:, 1:-1] += self.dt * (curl_B[:, 1:-1] - 4 * np.pi * self.J[:, 1:-1])
+        #self.Eg[:, 1:-1] += self.dt * (curl_B[:, 1:-1] -  self.J[:, 1:-1])
     def calc_B(self):
         # dB/dt = - curl E
         curl_E = np.zeros_like(self.B)
