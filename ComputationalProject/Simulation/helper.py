@@ -186,9 +186,9 @@ class MathTools():
         curl = np.zeros_like(A)  # Initialize curl array with same shape as A
 
         # Compute shifted arrays using np.roll for finite differences
-        rolledx = np.roll(A, shift=-1, axis=1)  # Shift along x-axis
-        #rolledy = np.roll(A, shift=-1, axis=2)  # Shift along y-axis
-        #rolledz = np.roll(A, shift=-1, axis=3)  # Shift along z-axis
+        rolledx = np.roll(A, shift=-1, axis=3)  # Shift along x-axis
+        #rolledy = np.roll(A, shift=-1, axis=1)  # Shift along y-axis
+        #rolledz = np.roll(A, shift=-1, axis=2)  # Shift along z-axis
 
         # Compute finite differences
         # Forward difference: (A(x+dx) - A(x)) / dx

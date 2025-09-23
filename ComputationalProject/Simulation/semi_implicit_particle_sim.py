@@ -26,8 +26,7 @@ class PIC_Solver(MathTools):
         #Stabilitay Evolution Params
         self.theta = 0.8  # Implicit Parameter
 
-
-
+        self.xg = np.linspace(0, self.Lx - self.dx, self.Nx) + 0.5 * self.dx  # grid at cell centers
 
         # Resulting Connected Conditions
         self.qDm = -1
@@ -168,14 +167,14 @@ class PIC_Solver(MathTools):
 
     def calcJ_hat(self,xp,R_vp,Np,q_p,ShapeFunction):
 
-        first_sum_vec=q_p*self.ShaperParticle(xp,Np, R_vp, ShapeFunction)                  #[3,nx]
+        self.J=q_p*self.ShaperParticle(xp,Np, R_vp, ShapeFunction)                  #[3,nx]
 
         #return first_sum_vec
         second_sum=_scalar=q_p*self.ShaperParticle(xp,Np, np.sum(R_vp**2, axis=0), ShapeFunction) # [1,Nx]
 
 
 
-        return first_sum_vec - self.theta*self.dt *self.gradient(second_sum)
+        return self.J - self.theta*self.dt *self.gradient(second_sum)
 
     def calcRho_hat(self,rho,J_hat):
         return rho
@@ -264,7 +263,7 @@ class PIC_Solver(MathTools):
 
 
         # Matrix
-        rhs = self.matrix_rhs_equation(self.E, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
+        rhs = self.matrix_rhs_equation(self.Eg, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
         self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.species, combi, c)
 
 
@@ -306,7 +305,7 @@ class PIC_Solver(MathTools):
             spp["rho"] = self.deposit_charge(spp["xp"],spp["Np"],q_spp, af)
 
         # Update Fields
-        self.E = (self.E_theta - (1 - self.theta) * self.E) / self.theta  # For all Theta
+        self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
         self.B -= c * c * self.curl(self.E_theta)
 
 
@@ -318,35 +317,101 @@ class PIC_Solver(MathTools):
     """
     Analytics for Debugging
     """
-    def CalcKinEnergery(self):
+    def calcEnergy(self):
+        #return np.sum(self.Eg ** 2) * 0.5
+        return 0.5 * (self.Eg ** 2).sum() * self.dx
+
+
+    def calcPotEnergy(self):
+
+        return (0.5 * np.sum(self.Eg ** 2)*self.dx)
+    def calcKinEnergy(self):
         el = self.species[0]
-        return np.sum(el["vp"]**2)*0.5
-    def CalcEFieldEnergy(self):
-        return np.sum(self.E**2)*0.5
-    def analyze_E_theta_RHS(self):
-        el=self.species[0]
-        curlB = self.combi*self.curl(self.B)
-        grad_rho = self.gradient(el["rho_hat"])
-        term1 = self.E.copy()
-        term2 =  (curlB -self.combi * 4 * self.pi / self.c * el["J_hat"])
-        term3 = - self.combi ** 2 * 4 * self.pi * grad_rho
-
-        E_total = term1 + term2 + term3
-
-        # Normen berechnen
-        norm1 = np.linalg.norm(term1)
-        norm2 = np.linalg.norm(term2)
-        norm3 = np.linalg.norm(term3)
-        normE = np.linalg.norm(E_total)
-        curlBnorm=np.linalg.norm(curlB)
-
-
-        print("\n--- E_theta RHS analysis ---")
-        print(f"||E||        = {norm1:.4e}")
-        print(f"||curlB||        = {curlBnorm:.4e}")
-        print(f"||curlB - J||= {norm2:.4e}")
-        print(f"||grad(rho)||= {norm3:.4e}")
-        print(f"||E_total||  = {normE:.4e}")
+        #return np.sum(el["vp"] ** 2) * 0.5
+        return 0.5 * self.charge / self.qDm * np.sum(el["vp"] ** 2)
+    def calcMomentum(self):
+        el = self.species[0]
+        return (self.charge / self.qDm* np.sum(el["vp"])  )
     def checkStability(self):
         """Idk what Im doing"""
         return
+
+"""
+  def step1(self):
+        #Take Params to Use
+        af = lambda a: a #Spline Function (Shaperfunction) Identity yet
+        c=self.c
+        combi=self.combi
+
+        #Moments Gathering for all species
+        for spp in self.species:
+            q_spp = spp["q"]
+            beta_spp = spp["beta"]
+            x_spp = spp["xp"] #Note this doesnt Copy just references
+            v_spp = spp["vp"]
+            Np_ssp= spp["Np"]
+            Bp_ssp=spp["Bp"]
+            spp["rho"],spp["J_hat"]=self.MomentsGathering(x_spp,v_spp,Bp=Bp_ssp,Np=Np_ssp,qp=q_spp,beta=beta_spp,c=c,af=af)
+            spp["rho_hat"] = self.calcRho_hat(spp["rho"], spp["J_hat"])
+            #spp["rho_hat"] = self.binomial_filter(spp["rho_hat"])
+
+        rho_total = np.zeros_like(spp["rho"])
+        J_hat_total = np.zeros_like(spp["J_hat"])
+        rho_hat_total = np.zeros_like(spp["rho_hat"])
+        for spp in self.species:
+            rho_total += spp["rho"]
+            J_hat_total += spp["J_hat"]
+            rho_hat_total += spp["rho_hat"]
+        #Moments Gathering Finshed
+
+
+        # Matrix
+        rhs = self.matrix_rhs_equation(self.Eg, self.B, J_hat_total, rho_hat_total,combi=combi,c=c)  # TO Vector
+        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.species, combi, c)
+
+
+
+        #self.E_theta[0] = self.binomial_filter(self.E_theta[0])
+
+
+
+        
+        #Current Looping for Updated Positions
+        
+        for spp in self.species:
+            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"], spp["vp"], spp["Np"], beta=spp["beta"], c=c, af=af)
+        count = 0
+        for _ in range(5):
+            total_error = 0.0
+            for spp in self.species:
+                xp_old = spp["xp_iter"].copy()
+                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"],spp["Np"],beta=spp["beta"], c=c, af=af)
+                total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
+            if total_error < 1e-6:
+                #print("Iteration stopped after:" + str(count))
+                break
+
+            count += 1
+
+
+
+        for spp in self.species:
+            q_spp = spp["q"]
+            m_spp = spp["m"]
+            beta_spp = spp["beta"]
+            spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
+            # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
+            spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
+            spp["xp"] = self.boundary(spp["xp"])
+
+            ## For Debugging not needed Elsewhere
+            spp["rho"] = self.deposit_charge(spp["xp"],spp["Np"],q_spp, af)
+
+        # Update Fields
+        self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
+        self.B -= c * c * self.curl(self.E_theta)
+
+
+        self.t += self.dt
+
+"""

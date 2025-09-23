@@ -48,18 +48,39 @@ plot_params = {
 }
 
 # Display Result / Calculating
+def initialize_two_stream1D(Lx, Np,B,VT=0.005,V0=0.05, XP1=0.01,mode=1):
+    """
+    Initialize particle positions and velocities for a two-stream instability.
 
-if mode == 1:
-    run_nstep(solver_test, solver_ref, NT, DT)
-elif mode == 1:
-    data_test = CallItRenderer(solver_test, NT, "TwoStreamRender/Implicit",step=False)
-    data_ref = CallItRenderer(solver_ref, NT,"TwoStreamRender/Explicit",step=True)
+    Args:
+        Lx (float): System length
+        Np (int): Total number of particles
+        amplitude (float): Amplitude of velocity perturbation
 
-    run_continuous(data_test,data_ref,sim_params, plot_params)
-elif mode == 2:
-    data_test = CallItRenderer(solver_test, NT, "TwoStreamRender/Implicit",step=False)
-    data_ref = CallItRenderer(solver_ref, NT,"TwoStreamRender/Explicit",step=True)
+    Returns:
+        tuple: (xp, vp_x) where xp is particle positions and vp_x is x-component of velocities
+    """
 
-    run_flipbook(data_test,data_ref,sim_params, plot_params)
-else:
-    raise ValueError("No Valid Mode: Choose 1, 2 or 3")
+    #xg = np.linspace(0, L - dx, NG) + dx / 2
+    #Number of Grid Creates 0 bis L-dx
+    #xp = np.linspace(0, L - L / Np, Np).T
+    # Eavenly spaced bis L - L / Np
+    vp = np.zeros([ Np])
+    xp1 = 2 * Lx / Np * np.arange(Np // 2)
+    xp2 = 2 * Lx / Np * np.arange(Np // 2)
+
+
+    vp1 = V0 + XP1 * np.sin(2 *mode* np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
+    vp2 = -V0 - XP1 * np.sin(2 *mode* np.pi / Lx * xp1)+sample_maxwellian_anisotropic(VT,Np//2)
+    xp = np.concatenate([xp1, xp2])
+    vp_x = np.concatenate([vp1, vp2])
+    vp = vp_x
+    #B[2, ...] = 1
+    print("Non Normalized Sampling")
+    return xp, vp,B
+
+def sample_maxwellian_anisotropic(vth_par, Np):
+    # Sampling für anisotrope Maxwell-Verteilung (par = x, perp = y/z)
+
+    vx = np.random.normal(loc=0.0, scale=vth_par, size=Np)
+    return vx

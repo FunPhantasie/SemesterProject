@@ -92,7 +92,7 @@ class TwoStreamPIC1D:
         mat3 = mat2.multiply(vp.reshape(Np, 1))
 
         self.J     = (self.Q / dx) * mat2.toarray().sum(axis=0)
-        self.P_exx = P_exx = (self.Q / dx) * mat3.toarray().sum(axis=0)
+        self.P_exx  = (self.Q / dx) * mat3.toarray().sum(axis=0)
         self.rho   = rho_e + self.rho_back
 
     # ---------------- fields (original calc) ----------------

@@ -61,7 +61,7 @@ NG = 40  # 80 #320  # Number of grid cells
 PPC = 20  # number of particles per cell
 Np = NG * PPC  # total number of particles
 WP = 1.  # Plasma frequency
-QM = -1.  # Charge/mass ratio; normalized to to electron mass
+qDm = -1.  # Charge/mass ratio; normalized to to electron mass
 V0 = 0.5  # 0.9 # Stream velocity
 VT = 0.0000001  # Thermal speed
 
@@ -83,11 +83,11 @@ maxE = []
 # summing over (average) number of particles per cell:
 # PPC * signed_rho *dV / PPC= signed rho *dV
 # that's why we need to divide by dV when accumulating
-Q = WP ** 2 / (QM * Np / L)
+charge = WP ** 2 / (qDm * Np / L)
 
 # this is the ion rho_0
 # with WP=1, QOM= -1, rho_back=1
-rho_back = -Q * Np / L  # proton background density
+rho_back = -charge * Np / L  # proton background density
 
 # Auxilliary vectors / Hilfs-
 p = np.concatenate([np.arange(Np), np.arange(Np)])  # Some indices up to N 0 bis np-1 und dann nochmal
@@ -153,7 +153,7 @@ for it in range(NT + 1):  # p3
     # mat.toarray().sum(axis=0).sum(axis=0) is the number of particles
     # since Q= signed rho_e * DV/ PPC,
     # rho_e \sim -1
-    rho_e = Q / dx * mat.toarray().sum(axis=0)
+    rho_e = charge / dx * mat.toarray().sum(axis=0)
     # total density with neutralizing ions
 
     # total densirt, rho ~0
@@ -162,12 +162,12 @@ for it in range(NT + 1):  # p3
     #### calculation of the other moments, Jx and Pxx, needed for implicit
     ### q.v_x
     mat2 = mat.multiply(vp.reshape(Np, 1))
-    J_ex = Q / dx * mat2.toarray().sum(axis=0)
+    J_ex = charge / dx * mat2.toarray().sum(axis=0)
 
     ### q.v_x.v_x - this is the stress tensor, not the thermal pressure
     ### you need this in the calculation
     mat3 = mat2.multiply(vp.reshape(Np, 1))
-    P_exx = Q / dx * mat3.toarray().sum(axis=0)
+    P_exx = charge / dx * mat3.toarray().sum(axis=0)
 
     if (ES):
         # Compute electric field potential
@@ -192,13 +192,13 @@ for it in range(NT + 1):  # p3
     # interpolation grid->particle and velocity update
     # dv/dt= q/m E_p; E_p interpolated at particle position
     # mat is the field to particle interpolation
-    vp += mat * QM * Eg * DT
+    vp += mat * qDm * Eg * DT
 
     Etot = 0.5 * (Eg ** 2).sum() * dx
     histEnergy.append(Etot)
     histPotE.append(0.5 * (Eg ** 2).sum() * dx)
-    histKinE.append(0.5 * Q / QM * (vp ** 2).sum())
-    histMomentum.append(Q / QM * vp.sum())
+    histKinE.append(0.5 * charge / qDm * (vp ** 2).sum())
+    histMomentum.append(charge / qDm * vp.sum())
     t.append(it * DT)
 
     if (np.mod(it, TOut) == 0) and verbose:
