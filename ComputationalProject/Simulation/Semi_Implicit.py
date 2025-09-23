@@ -120,37 +120,63 @@ class IPIC_Solver():
 
 
 
-    def A_operator(self, E_flat,rho,combi,charge,qDm):
-        # Reshape flat vector to [3, Nx, Ny, Nz]
-        E_theta = E_flat.reshape( self.Nx)
-        beta_ssp = qDm * self.dt / 2
-        """Var 1 -- E to Ep"""
-        mu_E_theta = np.zeros_like(E, dtype=float)
+    def A_operator(self, E_calc,rho,combi,charge,beta):
+        """
+        :param E_calc: The E_theta to be solved for
+        :param rho:
+        :param combi:
+        :param charge:
+        :param beta:
+        :return:
+        """
+        #-----------Variante 1 -- E Ignoriert elementweise mult--------------#
+        R_E=E_calc
+        prefaktor=- 4 * self.pi * self.theta * self.dt *beta
+        mu_E_calc =  E_calc.multiply(rho)*prefaktor
 
-        """Var 2 -- E in Nx"""
+        # -----------Variante 2 -- E to Particle--------------#
+        R_E = E_calc
+        prefaktor = - 4 * self.pi * self.theta * self.dt *beta
+        xp=self.species[0]["xp"]
+        Np=self.Np
+        Ep=self.interpolate_fields_to_particles(xp,E_calc,Np)
+        mat_weights = self.ShapeFunction(xp, Np)
+        mat_E = mat_weights.multiply(Ep.reshape(Np, 1))
+        mu_E_calc = (charge / self.dx)*prefaktor * mat_E.toarray().sum(axis=0)
+
+        # -----------Variante 3 -- E on Grid--------------#
+
+
         #alpha_E = self.Evolver_R(self.E_theta, self.B, beta_ssp, c)
-        alpha_E=E_theta
+
         # matrix_lhs_equation(self, E_theta, species, combi, c):
 
         mu_E_theta += - 4 * self.pi * self.theta * self.dt * beta_ssp * charge * rho * alpha_E
-        Av = E_theta + mu_E_theta - combi ** 2 * (self.laplacian(E_theta) + self.laplacian(mu_E_theta))
+        Av = E_calc + mu_E_calc - combi ** 2 * (self.laplacian(E_calc) + self.laplacian(mu_E_calc))
 
 
 
-        return Av.ravel()
+        return Av
 
     def solveMatrixEquation(self,rhs,prevEtheta,rho,combi,charge,qDm):
-        rhs_flat = rhs.ravel()
+        """
 
-        A = LinearOperator((self.totalN, self.totalN), matvec=lambda v: self.A_operator(v,rho=rho,combi=combi,charge=charge,qDm=qDm))
-        E_theta_flat, info = gmres(A, rhs_flat, x0=prevEtheta.ravel(), rtol=1e-6, restart=30)
+        :param rhs: Scalar
+        :param prevEtheta:
+        :param rho: Scalar
+        :param combi: Dt*c*theta
+        :param charge: Norming
+        :param qDm: -1
+        :return: Etheta
+        """
+        beta = qDm * self.dt / 2
+        shape = (self.totalN, self.totalN)
+
+        A = LinearOperator(shape, matvec=lambda helper: self.A_operator(helper,rho=rho,combi=combi,charge=charge,beta=beta,dtype=np.float64))
+        E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-6, restart=30)
         if info == 0:
-            if self.dimension==3:
-                return E_theta_flat.reshape(3, self.Nx, self.Ny, self.Nz)
-            elif self.dimension==1:
-                return  E_theta_flat.reshape(self.Nx)
-            else:
-                raise SyntaxError("Wrong Dim" + str(self.dimension))
+            return  E_theta
+
         else:
             raise ValueError("GMRES failed to converge")
 
@@ -231,8 +257,8 @@ class IPIC_Solver():
         # Matrix
         rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
         charge_spp=self.species[0]["charge"]
-        q_spp=self.species[0]["q_spp"]
-        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.rhog, combi=combi, charge_spp=charge_spp,qDm=q_spp)
+        q_spp=self.species[0]["qDm"]
+        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.rhog, combi=combi, charge=charge_spp,qDm=q_spp)
 
 
 
