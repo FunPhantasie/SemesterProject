@@ -17,7 +17,7 @@ class IPIC_Solver():
         self.dimension = dimension
 
         #Stabilitay Evolution Params
-        self.theta = 0.8  # Implicit Parameter
+        self.theta = 0.5  # Implicit Parameter
         self.combi = self.c * self.theta * self.dt #Used For Calc
         # Handling Multiple Species
         # Initialize the Particles Global Positions and Velocities
@@ -129,29 +129,26 @@ class IPIC_Solver():
         :param beta:
         :return:
         """
-        #-----------Variante 1 -- E Ignoriert elementweise mult--------------#
-        R_E=E_calc
-        prefaktor=- 4 * self.pi * self.theta * self.dt *beta
-        mu_E_calc =  E_calc.multiply(rho)*prefaktor
-
-        # -----------Variante 2 -- E to Particle--------------#
         R_E = E_calc
-        prefaktor = - 4 * self.pi * self.theta * self.dt *beta
-        xp=self.species[0]["xp"]
-        Np=self.Np
-        Ep=self.interpolate_fields_to_particles(xp,E_calc,Np)
-        mat_weights = self.ShapeFunction(xp, Np)
-        mat_E = mat_weights.multiply(Ep.reshape(Np, 1))
-        mu_E_calc = (charge / self.dx)*prefaktor * mat_E.toarray().sum(axis=0)
+
+        prefaktor =  4 * self.pi * self.theta * self.dt * beta
+        #-----------Variante 1 -- E Ignoriert elementweise mult--------------#
+        #mu_E_calc =  np.multiply(E_calc,rhos)*prefaktor
+        mu_E_calc = rho * E_calc * prefaktor
+        # -----------Variante 2 -- E to Particle--------------#
+
+
+
+        #Ep=self.interpolate_fields_to_particles(xp,E_calc,Np)
+
+        #mat_E = mat_weights.multiply(Ep.reshape(Np, 1))
+        #mu_E_calc = (charge / self.dx)*prefaktor * mat_E.toarray().sum(axis=0)
 
         # -----------Variante 3 -- E on Grid--------------#
 
 
-        #alpha_E = self.Evolver_R(self.E_theta, self.B, beta_ssp, c)
 
-        # matrix_lhs_equation(self, E_theta, species, combi, c):
 
-        mu_E_theta += - 4 * self.pi * self.theta * self.dt * beta_ssp * charge * rho * alpha_E
         Av = E_calc + mu_E_calc - combi ** 2 * (self.laplacian(E_calc) + self.laplacian(mu_E_calc))
 
 
@@ -171,8 +168,11 @@ class IPIC_Solver():
         """
         beta = qDm * self.dt / 2
         shape = (self.totalN, self.totalN)
-
-        A = LinearOperator(shape, matvec=lambda helper: self.A_operator(helper,rho=rho,combi=combi,charge=charge,beta=beta,dtype=np.float64))
+        xp = self.species[0]["xp"]
+        Np = self.Np
+        mat_weights = self.ShapeFunction(xp, Np)
+        rho_s = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
+        A = LinearOperator(shape, matvec=lambda helper: self.A_operator(helper,rho=rho_s,combi=combi,charge=charge,beta=beta))
         E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-6, restart=30)
         if info == 0:
             return  E_theta
@@ -186,9 +186,7 @@ class IPIC_Solver():
 
 
 
-    def calc_v_hat(self,vp,E_theta_p,beta):
 
-        return vp+beta*E_theta_p[0,:]
 
     def particle_mover1d(self,vp_mid,xp,dt):
         return xp+dt*vp_mid[0,...]
@@ -209,31 +207,29 @@ class IPIC_Solver():
 
     def Looper(self, x_i,vp,Np,beta,c):
         # Grid to Particle
-        #self.E_theta= np.zeros_like(self.E_theta)
-        #self.B= np.zeros_like(self.B)
+        Bp = np.zeros([Np])
 
         E_theta_p = self.interpolate_fields_to_particles(x_i,self.E_theta,Np)  # E
-        Bp = self.interpolate_fields_to_particles(x_i, self.B, Np)  # B
+        #Bp = self.interpolate_fields_to_particles(x_i, self.B, Np)  # B
 
         # Calc Velocity
 
-        v_hat = self.calc_v_hat(vp, E_theta_p,beta)  # Here its Important that it is vp
+        v_hat = vp+beta*E_theta_p[0]  # Here its Important that it is vp
 
-        v_hat = self.Evolver_R(v_hat, Bp,beta = beta, c = c)
+        R_v = self.Evolver_R(v_hat, Bp,beta = beta, c = c)
 
-        x_i = self.particle_mover(v_hat,x_i, 0.5 * self.dt)
+        x_i = self.particle_mover(R_v,x_i, 0.5 * self.dt)
 
-        return self.boundary(x_i), v_hat
+        return self.boundary(x_i), R_v
 
     """Advance one full PIC cycle for all species"""
-    def step(self):
-
+    def Moments(self):
         c = self.c
         combi = self.combi
-        self.Jg*=0
-        self.Pg*=0
-        self.rhog*=0
-        self.rhog_hat *=0
+        self.Jg *= 0
+        self.Pg *= 0
+        self.rhog *= 0
+        self.rhog_hat *= 0
         self.Jg_hat *= 0
         """Moments Gathering for all species"""
         for spp in self.species:
@@ -243,24 +239,35 @@ class IPIC_Solver():
             v_spp = spp["vp"]
             Np_ssp = spp["Np"]
             Bp_ssp = spp["Bp"]
-            qDm_ssp= spp["qDm"]
-            spp["rho"],spp["rho_hat"],spp["P"],spp["J"], spp["J_hat"] = self.MomentsGathering(x_spp, v_spp, Bp=Bp_ssp, Np=Np_ssp, qDm=qDm_ssp,charge=charge_spp, c=c,)
+            qDm_ssp = spp["qDm"]
+            spp["rho"], spp["rho_hat"], spp["P"], spp["J"], spp["J_hat"] = self.MomentsGathering(x_spp, v_spp,
+                                                                                                 Bp=Bp_ssp, Np=Np_ssp,
+                                                                                                 qDm=qDm_ssp,
+                                                                                                 charge=charge_spp,
+                                                                                                 c=c, )
 
-            self.rhog_hat+=spp["rho_hat"]
-            self.Jg_hat+=spp["J_hat"]
+            self.rhog_hat += spp["rho_hat"]
+            self.Jg_hat += spp["J_hat"]
 
             self.rhog += spp["rho"]
             self.Jg += spp["J"]
-            self.Pg+=spp["P"]
-
+            self.Pg += spp["P"]
         """------------------------Moments Finished------------------------------"""
+    def step(self):
+
+        c = self.c
+        combi = self.combi
+        self.Moments()
         # Matrix
         rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
         charge_spp=self.species[0]["charge"]
         q_spp=self.species[0]["qDm"]
         self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.rhog, combi=combi, charge=charge_spp,qDm=q_spp)
 
+        # Update Fields
+        self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
 
+        # self.B -= c * c * self.curl(self.E_theta)
 
         # Current Looping for Updated Positions
 
@@ -293,9 +300,7 @@ class IPIC_Solver():
             ## For Debugging not needed Elsewhere
             #spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
 
-        # Update Fields
-        self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
-        #self.B -= c * c * self.curl(self.E_theta)
+
 
         self.t += self.dt
 

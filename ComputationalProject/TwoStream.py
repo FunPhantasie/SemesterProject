@@ -216,15 +216,15 @@ xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_in
 #own_solver.xp, own_solver.vp= xp_helper,vp_helper
 own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper,vp_helper
 norm_inno.xp, norm_inno.vp= xp_helper, vp_helper
-own_solver.step()
-norm_inno.step()
+
 
 # ======== SETTINGS ========
 stepview = 50   # show plots every 'stepview' steps
 # ==========================
-
-
-
+own_solver.Moments()
+norm_inno._deposit_CIC()
+norm_inno.calc_E()
+own_solver.Eg=norm_inno.Eg
 """Plotting"""
 
 times = []
@@ -238,10 +238,8 @@ E_sol_hist,   E_ref_hist   = [], []
 J_sol_hist,   J_ref_hist   = [], []
 P_sol_hist,   P_ref_hist   = [], []
 
+
 for n in range(NT):
-    # Schritt machen
-    norm_inno.step()
-    own_solver.step()
 
     # Zeit
     times.append(norm_inno.t)
@@ -267,6 +265,9 @@ for n in range(NT):
     J_ref_hist.append(own_solver.Jg.copy())   # nur x-Komponente
     P_ref_hist.append(own_solver.Pg.copy())
     E_ref_hist.append(own_solver.Eg.copy())
+
+    norm_inno.step()
+    own_solver.step()
 
     # ---- LIVE VIEW every 'stepview' steps ----
     if (n + 1) % stepview == 0 or n==0:
@@ -340,8 +341,8 @@ for n in range(NT):
         axs[1,1].legend()
 
         #J (letzter Snapshot)
-        axs[2,0].plot(norm_inno.xg, J_sol_hist[-1], label="Solution Jx")
-        axs[2,0].plot(own_solver.xg, J_ref_hist[-1],  label="Implicit Own Jx")
+        axs[2,0].plot(norm_inno.xg, J_sol_hist[-1],'--', label="Solution Jx")
+        axs[2,0].plot(own_solver.xg, J_ref_hist[-1], '-.', label="Implicit Own Jx")
         axs[2,0].set_title("Current J (final)")
         axs[2,0].legend()
 
