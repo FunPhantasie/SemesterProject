@@ -40,7 +40,8 @@ class IPIC_Solver():
         rho += self.back_charge_density
 
         mat_vel=mat_weights.multiply(vp_x.reshape(Np, 1))
-        J = (charge / self.dx) * mat_vel.toarray().sum(axis=0)
+        J=np.zeros(self.Nx)
+        J += (charge / self.dx) * mat_vel.toarray().sum(axis=0)
 
         mat_vel_2=mat_vel.multiply(vp_x.reshape(Np, 1))
 
@@ -96,7 +97,7 @@ class IPIC_Solver():
 
     def matrix_rhs_equation(self, E, B, J_hat, rho_hat,combi,c):
         return E + combi * ( - 4 * self.pi / c * J_hat) - combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
-        return E + combi * (self.curl(B) - 4 * self.pi / c * J_hat) - combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
+        #return E + combi * (self.curl(B) - 4 * self.pi / c * J_hat) - combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
 
     def gradient(self,f):
         return (np.roll(f, -1) - np.roll(f, 1)) / (2.0 * self.dx)
@@ -110,8 +111,8 @@ class IPIC_Solver():
     def Evolver_R(self,vec,Field,beta,c):
 
         return vec #Electro static
-        gg=vec+beta/c *self.cross(vec,Field)+(beta/c)**2 *self.dot(vec,Field)*Field
-        return gg/(1+(beta/c)**2*np.sum(np.abs(Field)**2, axis=0))
+        #gg=vec+beta/c *self.cross(vec,Field)+(beta/c)**2 *self.dot(vec,Field)*Field
+        #return gg/(1+(beta/c)**2*np.sum(np.abs(Field)**2, axis=0))
 
 
 
@@ -157,28 +158,43 @@ class IPIC_Solver():
 
     def solveMatrixEquation(self,rhs,prevEtheta,rho,combi,charge,qDm):
         """
+            Grid-based scalar field solve:
+            Solves A(E) = rhs using GMRES, where A is defined by A_operator.
 
-        :param rhs: Scalar
-        :param prevEtheta:
-        :param rho: Scalar
-        :param combi: Dt*c*theta
-        :param charge: Norming
-        :param qDm: -1
-        :return: Etheta
+            Parameters
+            ----------
+            rhs : ndarray, shape (Nx,)
+                Right-hand side vector.
+            prevEtheta : ndarray, shape (Nx,)
+                Initial guess for GMRES.
+            rho : ndarray, shape (Nx,)
+                Charge density on the grid.
+            combi : float
+                c * dt * theta
+            charge : float
+                Normalized charge (may be unused inside A_operator).
+            qDm : float
+                Charge-to-mass ratio sign (-1 for electrons, +1 for ions).
         """
+        # xp = self.species[0]["xp"]
+        # Np = self.Np
+        # mat_weights = self.ShapeFunction(xp, Np)
+        # rho_s = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
         beta = qDm * self.dt / 2
-        shape = (self.totalN, self.totalN)
-        xp = self.species[0]["xp"]
-        Np = self.Np
-        mat_weights = self.ShapeFunction(xp, Np)
-        rho_s = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
-        A = LinearOperator(shape, matvec=lambda helper: self.A_operator(helper,rho=rho_s,combi=combi,charge=charge,beta=beta))
-        E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-6, restart=30)
-        if info == 0:
-            return  E_theta
+        n = self.totalN
 
-        else:
-            raise ValueError("GMRES failed to converge")
+        def matvec(x):
+            return self.A_operator(x, rho=rho, combi=combi, charge=charge, beta=beta)
+
+        A = LinearOperator((n, n), matvec=matvec, dtype=rhs.dtype)
+
+
+
+        E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-6, restart=30)
+        if info != 0:
+            raise ValueError(f"GMRES failed to converge (info={info})")
+
+        return E_theta
 
 
 
@@ -226,12 +242,16 @@ class IPIC_Solver():
     def Moments(self):
         c = self.c
         combi = self.combi
+        #Comparision
         self.Jg *= 0
         self.Pg *= 0
         self.rhog *= 0
+        #For Implicit
         self.rhog_hat *= 0
         self.Jg_hat *= 0
         """Moments Gathering for all species"""
+        print(self.species[0].keys())
+
         for spp in self.species:
             q_spp = spp["q"]
             charge_spp = spp["charge"]
@@ -240,18 +260,15 @@ class IPIC_Solver():
             Np_ssp = spp["Np"]
             Bp_ssp = spp["Bp"]
             qDm_ssp = spp["qDm"]
-            spp["rho"], spp["rho_hat"], spp["P"], spp["J"], spp["J_hat"] = self.MomentsGathering(x_spp, v_spp,
-                                                                                                 Bp=Bp_ssp, Np=Np_ssp,
-                                                                                                 qDm=qDm_ssp,
-                                                                                                 charge=charge_spp,
+            spp["rho"], spp_rho_hat, spp_P, spp_J, spp_J_hat = self.MomentsGathering(x_spp, v_spp,Bp=Bp_ssp, Np=Np_ssp,qDm=qDm_ssp,charge=charge_spp,
                                                                                                  c=c, )
-
-            self.rhog_hat += spp["rho_hat"]
-            self.Jg_hat += spp["J_hat"]
+            # rho,rho_hat,P, J,J_hat
+            self.rhog_hat += spp_rho_hat
+            self.Jg_hat += spp_J_hat
 
             self.rhog += spp["rho"]
-            self.Jg += spp["J"]
-            self.Pg += spp["P"]
+            self.Jg += spp_J
+            self.Pg += spp_P
         """------------------------Moments Finished------------------------------"""
     def step(self):
 
@@ -259,6 +276,7 @@ class IPIC_Solver():
         combi = self.combi
         self.Moments()
         # Matrix
+
         rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
         charge_spp=self.species[0]["charge"]
         q_spp=self.species[0]["qDm"]
@@ -266,7 +284,7 @@ class IPIC_Solver():
 
         # Update Fields
         self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
-
+        """
         # self.B -= c * c * self.curl(self.E_theta)
 
         # Current Looping for Updated Positions
@@ -300,7 +318,7 @@ class IPIC_Solver():
             ## For Debugging not needed Elsewhere
             #spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
 
-
+        """
 
         self.t += self.dt
 

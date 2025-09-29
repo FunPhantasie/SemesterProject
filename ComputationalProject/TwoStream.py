@@ -12,7 +12,9 @@ from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
 #from Analytics.Animator import run_flipbook
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
+mpl.use('TkAgg')
 class Init_SemiImplicit(Semi_PIC_Solver):
     def __init__(self,L=1,NG=1,PPC=20,DT=0.1,ES=True):
         #Parameter Conditions
@@ -221,14 +223,15 @@ norm_inno.xp, norm_inno.vp= xp_helper, vp_helper
 # ======== SETTINGS ========
 stepview = 50   # show plots every 'stepview' steps
 # ==========================
+
 own_solver.Moments()
 norm_inno._deposit_CIC()
 norm_inno.calc_E()
 own_solver.Eg=norm_inno.Eg
 """Plotting"""
 
-times = []
-
+times_inno = []
+times_own = []
 # Historien
 energy_sol, kin_sol, mom_sol = [], [], []
 energy_ref, kin_ref, mom_ref = [], [], []
@@ -240,10 +243,15 @@ P_sol_hist,   P_ref_hist   = [], []
 
 
 for n in range(NT):
-
+    norm_inno.step()
+    own_solver.step()
+    print("Step")
+    #J_snapshot = self.Jg.copy()
+    #J_snapshot_impl = self.Jg.copy()
+    #diff = np.linalg.norm(J_snapshot - J_snapshot_impl)
     # Zeit
-    times.append(norm_inno.t)
-
+    times_inno.append(norm_inno.t)
+    times_own.append(own_solver.t)
     # Energies & Momentum
     energy_sol.append(norm_inno.calcEnergy())
     kin_sol.append(norm_inno.calcKinEnergy())
@@ -254,7 +262,7 @@ for n in range(NT):
     mom_ref.append(own_solver.calcMomentum())
 
     rho_sol_hist.append(norm_inno.rho.copy())
-    J_sol_hist.append(norm_inno.J.copy())
+    J_sol_hist.append(norm_inno.Jg.copy())
     E_sol_hist.append(norm_inno.Eg.copy())
     P_sol_hist.append(norm_inno.P_exx.copy())
     electrons = own_solver.species[0]
@@ -266,11 +274,10 @@ for n in range(NT):
     P_ref_hist.append(own_solver.Pg.copy())
     E_ref_hist.append(own_solver.Eg.copy())
 
-    norm_inno.step()
-    own_solver.step()
+
 
     # ---- LIVE VIEW every 'stepview' steps ----
-    if (n + 1) % stepview == 0 or n==0:
+    if (n + 1) % stepview == 0 or n==0 or True:
         # --------- PLOTTEN ---------
         fig, axs = plt.subplots(3, 2, figsize=(12, 13))
         """
@@ -294,7 +301,7 @@ for n in range(NT):
         """
 
         # x–v Phase Space (Solution)
-        axs[0,0].scatter(norm_inno.xp, norm_inno.vp, s=2, alpha=0.6, label="Solution")
+        axs[0,0].scatter(norm_inno.xp, norm_inno.vp, s=2, alpha=0.6, label="Solution t="+str(times_inno[-1]))
         axs[0,0].set_title("Phase space (x–v) — Solution")
         axs[0,0].set_xlabel("x")
         axs[0,0].set_ylabel("v")
@@ -302,7 +309,7 @@ for n in range(NT):
 
         # x–v Phase Space (Reference)
 
-        axs[0,1].scatter(own_solver.species[0]["xp"], own_solver.species[0]["vp"], s=2, alpha=0.6, label="Implicit Own")
+        axs[0,1].scatter(own_solver.species[0]["xp"], own_solver.species[0]["vp"], s=2, alpha=0.6, label="Implicit Own t="+str(times_own[-1]) )
         axs[0,1].set_title("Phase space (x–v) — Implicit Own")
         axs[0,1].set_xlabel("x")
         axs[0,1].set_ylabel("v")

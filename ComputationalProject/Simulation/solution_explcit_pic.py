@@ -32,14 +32,14 @@ class TwoStreamPIC1D:
 
         self.Eg = np.zeros(self.NG)
         self.E  = self.Eg.copy()
-        self.Q = self.WP**2 / (self.QM * self.Np / self.L)
-        self.rho_back = -self.Q * self.Np / self.L
+        self.charge = self.WP ** 2 / (self.QM * self.Np / self.L)
+        self.rho_back = -self.charge * self.Np / self.L
 
         self.xp = None
         self.vp = None
 
         self.rho   = np.zeros(self.NG)
-        self.J     = np.zeros(self.NG)
+        self.Jg     = np.zeros(self.NG)
         self.P_exx = np.zeros(self.NG)
         self.rho_e = np.zeros(self.NG)
         self.Ep    = None
@@ -86,13 +86,13 @@ class TwoStreamPIC1D:
         mat = sparse.csc_matrix((fraz, (prow, g)), shape=(Np, NG))
 
 
-        rho_e = self.Q / self.dx * mat.toarray().sum(axis=0)
+        rho_e = self.charge / self.dx * mat.toarray().sum(axis=0)
 
         mat2 = mat.multiply(vp.reshape(Np, 1))
         mat3 = mat2.multiply(vp.reshape(Np, 1))
 
-        self.J     = (self.Q / dx) * mat2.toarray().sum(axis=0)
-        self.P_exx  = (self.Q / dx) * mat3.toarray().sum(axis=0)
+        self.Jg     = (self.charge / dx) * mat2.toarray().sum(axis=0)
+        self.P_exx  = (self.charge / dx) * mat3.toarray().sum(axis=0)
         self.rho   = rho_e + self.rho_back
 
     # ---------------- fields (original calc) ----------------
@@ -108,7 +108,7 @@ class TwoStreamPIC1D:
         self.E = self.Eg
 
     def _ampere_update(self):
-        self.Eg = self.Eg - self.DT * self.J
+        self.Eg = self.Eg - self.DT * self.Jg
         self.E = self.Eg
 
     # ---------------- interpolation & push (original calc) ----------------
@@ -123,7 +123,7 @@ class TwoStreamPIC1D:
         self.Ep = w0 * self.Eg[i0] + w1 * self.Eg[i1]
 
     def _push_v(self):
-        self.vp += (self.Q / self.QM) * self.Ep * self.DT
+        self.vp += (self.charge / self.QM) * self.Ep * self.DT
 
     def _push_x(self):
         self.xp += self.vp * self.DT
@@ -133,9 +133,9 @@ class TwoStreamPIC1D:
     def step(self):
         self._deposit_CIC()
         self.calc_E()
-        self._interp_E_to_particles()
-        self._push_v()
-        self._push_x()
+        #self._interp_E_to_particles()
+        #self._push_v()
+        #self._push_x()
         self.t += self.DT
         self.it += 1
 
@@ -149,7 +149,7 @@ class TwoStreamPIC1D:
         return 0.5 * np.sum(self.E ** 2) * self.dx
 
     def calcKinEnergy(self):
-        return 0.5 * (self.Q / self.QM) * np.sum(self.vp ** 2)
+        return 0.5 * (self.charge / self.QM) * np.sum(self.vp ** 2)
 
     def calcMomentum(self):
-        return (self.Q / self.QM) * np.sum(self.vp)
+        return (self.charge / self.QM) * np.sum(self.vp)
