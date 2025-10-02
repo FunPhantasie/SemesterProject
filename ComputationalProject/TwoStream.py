@@ -202,14 +202,14 @@ mode = 3
 
 
 L = 2.5 * np.pi
-NG = 40  # 80 #320  # Number of grid cells /gridpoints
+NG = 320  # 80 #320  # Number of grid cells /gridpoints
 PPC = 20  # number of particles per cell
 
-DT = 0.005 * 10
+DT = 0.05
 NT=500
 
 
-params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=False)
+params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
 norm_inno = Solution_PIC( **params_class) #'Innocenti'
 #own_solver = Explicit_PIC_Solver(**params_class) # Me
 own_solver= Init_SemiImplicit(**params_class)
@@ -246,7 +246,7 @@ for n in range(NT):
     norm_inno.step()
     own_solver.step()
     print("Step")
-    #J_snapshot = self.Jg.copy()
+    #J_snapshot = self.Jg.copy() .
     #J_snapshot_impl = self.Jg.copy()
     #diff = np.linalg.norm(J_snapshot - J_snapshot_impl)
     # Zeit
@@ -268,7 +268,7 @@ for n in range(NT):
     electrons = own_solver.species[0]
 
     #print(np.shape(electrons["rho"].copy))
-    rho_ref_hist.append(electrons["rho"].copy())
+    rho_ref_hist.append(own_solver.rhog.copy())
 
     J_ref_hist.append(own_solver.Jg.copy())   # nur x-Komponente
     P_ref_hist.append(own_solver.Pg.copy())

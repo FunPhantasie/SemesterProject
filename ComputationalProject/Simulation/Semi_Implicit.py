@@ -17,7 +17,7 @@ class IPIC_Solver():
         self.dimension = dimension
 
         #Stabilitay Evolution Params
-        self.theta = 0.5  # Implicit Parameter
+        self.theta = 0.95  # Implicit Parameter
         self.combi = self.c * self.theta * self.dt #Used For Calc
         # Handling Multiple Species
         # Initialize the Particles Global Positions and Velocities
@@ -37,7 +37,7 @@ class IPIC_Solver():
 
         mat_weights = self.ShapeFunction(xp, Np)
         rho = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
-        rho += self.back_charge_density
+
 
         mat_vel=mat_weights.multiply(vp_x.reshape(Np, 1))
         J=np.zeros(self.Nx)
@@ -121,12 +121,11 @@ class IPIC_Solver():
 
 
 
-    def A_operator(self, E_calc,rho,combi,charge,beta):
+    def A_operator(self, E_calc,rho,combi,beta):
         """
         :param E_calc: The E_theta to be solved for
         :param rho:
         :param combi:
-        :param charge:
         :param beta:
         :return:
         """
@@ -176,21 +175,18 @@ class IPIC_Solver():
             qDm : float
                 Charge-to-mass ratio sign (-1 for electrons, +1 for ions).
         """
-        # xp = self.species[0]["xp"]
-        # Np = self.Np
-        # mat_weights = self.ShapeFunction(xp, Np)
-        # rho_s = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
+
         beta = qDm * self.dt / 2
         n = self.totalN
 
         def matvec(x):
-            return self.A_operator(x, rho=rho, combi=combi, charge=charge, beta=beta)
+            return self.A_operator(x, rho=rho, combi=combi,  beta=beta)
 
         A = LinearOperator((n, n), matvec=matvec, dtype=rhs.dtype)
 
 
 
-        E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-6, restart=30)
+        E_theta, info = gmres(A, rhs, x0=prevEtheta, rtol=1e-7, restart=30)
         if info != 0:
             raise ValueError(f"GMRES failed to converge (info={info})")
 
@@ -267,8 +263,11 @@ class IPIC_Solver():
             self.Jg_hat += spp_J_hat
 
             self.rhog += spp["rho"]
+
             self.Jg += spp_J
             self.Pg += spp_P
+        self.rhog +=  self.back_charge_density
+        self.rhog_hat+=  self.back_charge_density
         """------------------------Moments Finished------------------------------"""
     def step(self):
 
@@ -280,11 +279,10 @@ class IPIC_Solver():
         rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
         charge_spp=self.species[0]["charge"]
         q_spp=self.species[0]["qDm"]
-        self.E_theta = self.solveMatrixEquation(rhs, self.E_theta, self.rhog, combi=combi, charge=charge_spp,qDm=q_spp)
+        self.E_theta = self.solveMatrixEquation(rhs, self.Eg, self.rhog, combi=combi, charge=charge_spp,qDm=q_spp)
 
         # Update Fields
         self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
-        """
         # self.B -= c * c * self.curl(self.E_theta)
 
         # Current Looping for Updated Positions
@@ -308,17 +306,13 @@ class IPIC_Solver():
             count += 1
 
         for spp in self.species:
-
-
             spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
             # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
             spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
             spp["xp"] = self.boundary(spp["xp"])
 
             ## For Debugging not needed Elsewhere
-            #spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
-
-        """
+            # spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
 
         self.t += self.dt
 
@@ -342,3 +336,7 @@ class IPIC_Solver():
         el = self.species[0]
         return (el["charge"] / el["qDm"]* np.sum(el["vp"])  )
 
+"""
+        
+
+        """

@@ -133,9 +133,9 @@ class TwoStreamPIC1D:
     def step(self):
         self._deposit_CIC()
         self.calc_E()
-        #self._interp_E_to_particles()
-        #self._push_v()
-        #self._push_x()
+        self._interp_E_to_particles()
+        self._push_v()
+        self._push_x()
         self.t += self.DT
         self.it += 1
 
