@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import gmres, LinearOperator
-from .helper import MathTools
+
 from scipy.ndimage import gaussian_filter
 
 
@@ -12,12 +12,12 @@ from scipy.ndimage import gaussian_filter
 class IPIC_Solver():
 
     def __init__(self, dimension,stepssize,border,gridNumbers,species):
-        #super().__init__(dimension=dimension, stepssize=stepssize) # Setup Math Tool Stepsize include dx,dy,dz if exist
+
 
         self.dimension = dimension
 
         #Stabilitay Evolution Params
-        self.theta = 0.95  # Implicit Parameter
+        self.theta = 0.5  # Implicit Parameter
         self.combi = self.c * self.theta * self.dt #Used For Calc
         # Handling Multiple Species
         # Initialize the Particles Global Positions and Velocities
@@ -34,7 +34,18 @@ class IPIC_Solver():
         self.particle_mover=self.particle_mover1d
 
     def MomentsGathering(self, xp, vp_x, Bp, Np, qDm, charge, c):
+        """
 
+        :param xp:
+        :param vp_x:
+        :param Bp: Zero Not Implemented
+        :param Np:
+        :param qDm:
+        :param charge:
+        :param c:
+        :return: rho,rho_hat,P, J,J_hat
+        Same Design as in Solution PIC
+        """
         mat_weights = self.ShapeFunction(xp, Np)
         rho = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
 
@@ -47,10 +58,10 @@ class IPIC_Solver():
 
         P = (charge / self.dx) * mat_vel_2.toarray().sum(axis=0)
         beta=qDm*self.dt/2
-        R_vp = self.Evolver_R(vp_x, Bp, beta=beta, c=c)
-
-        mat_Rvel=mat_weights.multiply(R_vp.reshape(Np, 1))
-        mat_Rvel_2=mat_Rvel.multiply(R_vp.reshape(Np, 1))
+        """Only Relevant if B != 0"""
+        #R_vp = self.Evolver_R(vp_x, Bp, beta=beta, c=c)
+        #mat_Rvel=mat_weights.multiply(R_vp.reshape(Np, 1))
+        #mat_Rvel_2=mat_Rvel.multiply(R_vp.reshape(Np, 1))
 
         #J_hat = (charge / self.dx)*mat_Rvel.toarray().sum(axis=0)- (charge / self.dx)*self.theta * self.dt * self.gradient(mat_Rvel_2.toarray().sum(axis=0))
         J_hat = J - self.theta * self.dt*self.gradient(P) # v *v => scalrar
@@ -105,6 +116,10 @@ class IPIC_Solver():
         """In 1D ES this is just dj/dx; provided for possible uses."""
         return (np.roll(j, -1) - np.roll(j, 1)) / (2.0 * self.dx)
     def curl(self,v):
+        """
+        :param v:
+        :return: 0 Doesnt exist in Scalar World
+        """
         return v*0
     def laplacian(self,f):
         return (np.roll(f, -1) - 2.0 * f + np.roll(f, 1)) / (self.dx ** 2)
@@ -136,23 +151,11 @@ class IPIC_Solver():
         #mu_E_calc =  np.multiply(E_calc,rhos)*prefaktor
         mu_E_calc = rho * E_calc * prefaktor
         # -----------Variante 2 -- E to Particle--------------#
-
-
-
         #Ep=self.interpolate_fields_to_particles(xp,E_calc,Np)
-
         #mat_E = mat_weights.multiply(Ep.reshape(Np, 1))
         #mu_E_calc = (charge / self.dx)*prefaktor * mat_E.toarray().sum(axis=0)
-
         # -----------Variante 3 -- E on Grid--------------#
-
-
-
-
         Av = E_calc + mu_E_calc - combi ** 2 * (self.laplacian(E_calc) + self.laplacian(mu_E_calc))
-
-
-
         return Av
 
     def solveMatrixEquation(self,rhs,prevEtheta,rho,combi,charge,qDm):
@@ -336,7 +339,3 @@ class IPIC_Solver():
         el = self.species[0]
         return (el["charge"] / el["qDm"]* np.sum(el["vp"])  )
 
-"""
-        
-
-        """

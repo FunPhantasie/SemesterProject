@@ -1,11 +1,11 @@
 import numpy as np
 
-from Simulation.explicit_particle_sim import Explicit_PIC_Solver
-from Simulation.Semi_Implicit import IPIC_Solver as Semi_PIC_Solver
-from Simulation.solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
+#from explicit_particle_sim import Explicit_PIC_Solver
+from Semi_Implicit import IPIC_Solver as Semi_PIC_Solver
+from solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
 from scipy import sparse
 from scipy.sparse import linalg
-from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
+#from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
 
 #from Analytics.RenderManager import CallItRenderer
 #from Analytics.Animator import run_continuous
@@ -14,7 +14,7 @@ from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-mpl.use('TkAgg')
+#mpl.use('TkAgg')
 class Init_SemiImplicit(Semi_PIC_Solver):
     def __init__(self,L=1,NG=1,PPC=20,DT=0.1,ES=True):
         #Parameter Conditions
@@ -211,11 +211,9 @@ NT=500
 
 params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
 norm_inno = Solution_PIC( **params_class) #'Innocenti'
-#own_solver = Explicit_PIC_Solver(**params_class) # Me
 own_solver= Init_SemiImplicit(**params_class)
 params_init = dict(VT=0.0000001, V0=0.5, XP1=1.0, mode=1,seed=42)
 xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
-#own_solver.xp, own_solver.vp= xp_helper,vp_helper
 own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper,vp_helper
 norm_inno.xp, norm_inno.vp= xp_helper, vp_helper
 
@@ -364,5 +362,6 @@ for n in range(NT):
         axs[2,1].legend()
 
         plt.tight_layout()
+        plt.savefig("render/two-stream" + str(n) + ".png")
         plt.show()
         plt.close(fig)   # close so the loop continues without piling windows
