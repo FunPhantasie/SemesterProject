@@ -214,8 +214,8 @@ norm_inno = Solution_PIC( **params_class) #'Innocenti'
 own_solver= Init_SemiImplicit(**params_class)
 params_init = dict(VT=0.0000001, V0=0.5, XP1=1.0, mode=1,seed=42)
 xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
-own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper,vp_helper
-norm_inno.xp, norm_inno.vp= xp_helper, vp_helper
+own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper.copy(),vp_helper.copy()
+norm_inno.xp, norm_inno.vp= xp_helper.copy(), vp_helper.copy()
 
 
 # ======== SETTINGS ========
@@ -241,9 +241,10 @@ P_sol_hist,   P_ref_hist   = [], []
 
 
 for n in range(NT):
+    print("Step"+str(n))
     norm_inno.step()
     own_solver.step()
-    print("Step")
+
     #J_snapshot = self.Jg.copy() .
     #J_snapshot_impl = self.Jg.copy()
     #diff = np.linalg.norm(J_snapshot - J_snapshot_impl)
@@ -275,7 +276,7 @@ for n in range(NT):
 
 
     # ---- LIVE VIEW every 'stepview' steps ----
-    if (n + 1) % stepview == 0 or n==0 or True:
+    if (n + 1) % stepview == 0  or True:
         # --------- PLOTTEN ---------
         fig, axs = plt.subplots(3, 2, figsize=(12, 13))
         """

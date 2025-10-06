@@ -204,6 +204,7 @@ class IPIC_Solver():
 
 
     def particle_mover1d(self,vp_mid,xp,dt):
+        print("particle_mover1d")
         return xp+dt*vp_mid[0,...]
 
     def boundary(self,x):
@@ -249,7 +250,7 @@ class IPIC_Solver():
         self.rhog_hat *= 0
         self.Jg_hat *= 0
         """Moments Gathering for all species"""
-        print(self.species[0].keys())
+
 
         for spp in self.species:
             q_spp = spp["q"]
@@ -277,12 +278,12 @@ class IPIC_Solver():
         c = self.c
         combi = self.combi
         self.Moments()
+        print("Moments Gathering")
         # Matrix
-
         rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
-        charge_spp=self.species[0]["charge"]
-        q_spp=self.species[0]["qDm"]
-        self.E_theta = self.solveMatrixEquation(rhs, self.Eg, self.rhog, combi=combi, charge=charge_spp,qDm=q_spp)
+        charge_spp = self.species[0]["charge"]
+        q_spp = self.species[0]["qDm"]
+        self.E_theta = self.solveMatrixEquation(rhs, self.Eg, self.rhog, combi=combi, charge=charge_spp, qDm=q_spp)
 
         # Update Fields
         self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
@@ -318,6 +319,8 @@ class IPIC_Solver():
             # spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
 
         self.t += self.dt
+
+
 
 
     """
