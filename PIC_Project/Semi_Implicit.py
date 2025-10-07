@@ -17,7 +17,7 @@ class IPIC_Solver():
         self.dimension = dimension
 
         #Stabilitay Evolution Params
-        self.theta = 0.5  # Implicit Parameter
+        self.theta = 0.8  # Implicit Parameter
         self.combi = self.c * self.theta * self.dt #Used For Calc
         # Handling Multiple Species
         # Initialize the Particles Global Positions and Velocities
@@ -46,10 +46,13 @@ class IPIC_Solver():
         :return: rho,rho_hat,P, J,J_hat
         Same Design as in Solution PIC
         """
+        print("Rho Update")
+        rho=np.zeros(Np)
+        print(rho)
         mat_weights = self.ShapeFunction(xp, Np)
         rho = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
-
-
+        print(rho)
+        print("Rho Update Complete")
         mat_vel=mat_weights.multiply(vp_x.reshape(Np, 1))
         J=np.zeros(self.Nx)
         J += (charge / self.dx) * mat_vel.toarray().sum(axis=0)
@@ -149,7 +152,11 @@ class IPIC_Solver():
         prefaktor =  4 * self.pi * self.theta * self.dt * beta
         #-----------Variante 1 -- E Ignoriert elementweise mult--------------#
         #mu_E_calc =  np.multiply(E_calc,rhos)*prefaktor
+        #E
         mu_E_calc = rho * E_calc * prefaktor
+        #P
+
+
         # -----------Variante 2 -- E to Particle--------------#
         #Ep=self.interpolate_fields_to_particles(xp,E_calc,Np)
         #mat_E = mat_weights.multiply(Ep.reshape(Np, 1))
@@ -204,7 +211,7 @@ class IPIC_Solver():
 
 
     def particle_mover1d(self,vp_mid,xp,dt):
-        print("particle_mover1d")
+
         return xp+dt*vp_mid[0,...]
 
     def boundary(self,x):
@@ -253,25 +260,23 @@ class IPIC_Solver():
 
 
         for spp in self.species:
-            q_spp = spp["q"]
-            charge_spp = spp["charge"]
-            x_spp = spp["xp"]
-            v_spp = spp["vp"]
-            Np_ssp = spp["Np"]
-            Bp_ssp = spp["Bp"]
-            qDm_ssp = spp["qDm"]
-            spp["rho"], spp_rho_hat, spp_P, spp_J, spp_J_hat = self.MomentsGathering(x_spp, v_spp,Bp=Bp_ssp, Np=Np_ssp,qDm=qDm_ssp,charge=charge_spp,
-                                                                                                 c=c, )
-            # rho,rho_hat,P, J,J_hat
-            self.rhog_hat += spp_rho_hat
-            self.Jg_hat += spp_J_hat
+            if spp["name"]=="el":
+                q_spp = spp["q"]
+                charge_spp = spp["charge"]
+                x_spp = spp["xp"]
+                v_spp = spp["vp"]
+                Np_ssp = spp["Np"]
+                Bp_ssp = spp["Bp"]
+                qDm_ssp = spp["qDm"]
+                spp["rho"], spp["rho_hat"], spp["P"], spp["J"], spp["J_hat"] = self.MomentsGathering(x_spp, v_spp,Bp=Bp_ssp, Np=Np_ssp,qDm=qDm_ssp,charge=charge_spp,
+                                                                                                     c=c, )
+                # rho,rho_hat,P, J,J_hat
+            if
 
-            self.rhog += spp["rho"]
 
-            self.Jg += spp_J
-            self.Pg += spp_P
-        self.rhog +=  self.back_charge_density
-        self.rhog_hat+=  self.back_charge_density
+        #self.rhog += spp["rho"]
+        #self.rhog +=  self.back_charge_density
+        #self.rhog_hat+=  self.back_charge_density
         """------------------------Moments Finished------------------------------"""
     def step(self):
 

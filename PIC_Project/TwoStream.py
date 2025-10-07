@@ -212,7 +212,7 @@ NT=500
 params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
 norm_inno = Solution_PIC( **params_class) #'Innocenti'
 own_solver= Init_SemiImplicit(**params_class)
-params_init = dict(VT=0.0000001, V0=0.5, XP1=1.0, mode=1,seed=42)
+params_init = dict(VT=0.01, V0=0.5, XP1=1.0, mode=1,seed=42)
 xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
 own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper.copy(),vp_helper.copy()
 norm_inno.xp, norm_inno.vp= xp_helper.copy(), vp_helper.copy()
@@ -222,10 +222,10 @@ norm_inno.xp, norm_inno.vp= xp_helper.copy(), vp_helper.copy()
 stepview = 50   # show plots every 'stepview' steps
 # ==========================
 
-own_solver.Moments()
-norm_inno._deposit_CIC()
-norm_inno.calc_E()
-own_solver.Eg=norm_inno.Eg
+#own_solver.Moments()
+#norm_inno._deposit_CIC()
+#norm_inno.calc_E()
+#own_solver.Eg=norm_inno.Eg
 """Plotting"""
 
 times_inno = []
@@ -363,6 +363,6 @@ for n in range(NT):
         axs[2,1].legend()
 
         plt.tight_layout()
-        plt.savefig("render/two-stream" + str(n) + ".png")
+        plt.savefig("C:/Users/Gott/Desktop/Projekte/SemesterProject/PIC_Project/render/two-stream" + str(n) + ".png")
         plt.show()
         plt.close(fig)   # close so the loop continues without piling windows
