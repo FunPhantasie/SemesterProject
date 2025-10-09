@@ -1,113 +1,13 @@
 import numpy as np
 
-#from explicit_particle_sim import Explicit_PIC_Solver
+
 from Semi_Implicit import IPIC_Solver as Semi_PIC_Solver
 from solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
-from scipy import sparse
-from scipy.sparse import linalg
-#from Analytics.AnalyticsOfNStep import run_save_steps as run_nstep
 
-#from Analytics.RenderManager import CallItRenderer
-#from Analytics.Animator import run_continuous
-#from Analytics.Animator import run_flipbook
+
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-
-#mpl.use('TkAgg')
-class Init_SemiImplicit(Semi_PIC_Solver):
-    def __init__(self,L=1,NG=1,PPC=20,DT=0.1,ES=True):
-        #Parameter Conditions
-        self.Nx = NG  # gridpoints
-        self.dt = DT
-        self.Lx = L  # Border
-        self.dx = self.Lx / self.Nx
-        #Npp per Cell is Electons in Species
-        self.t = 0.0
-
-        self.xg = np.linspace(0, self.Lx - self.dx, self.Nx) + 0.5 * self.dx  # grid at cell centers
-
-        """--------Fields--------"""
-
-        self.totalN=self.Nx #Total Number of Gridppoints (3 Could be Wrong)
-        self.NPpCell = PPC  # NPpCell
-        self.Np = self.Nx * self.NPpCell
-
-
-        # Resulting Connected Conditions
-
-        self.Eg = np.zeros([ self.Nx])  # E[0]
-        self.rhog =np.zeros([self.Nx])
-        self.Jg=np.zeros([ self.Nx]) #Global
-        self.Pg=np.zeros([ self.Nx])
-
-        self.rhog_hat =np.zeros([self.Nx])
-        self.Jg_hat =np.zeros([self.Nx])
-        self.B = np.zeros([ self.Nx])  # B[2]
-        self.E_theta = np.zeros([ self.Nx])
-
-        """
-        All The Fields and Moments
-        """
-        # Physical constants
-        self.c = 1
-        self.pi = np.pi
-        self.omega_p = 1.  # Plasma Freq.
-        self.epsilon_0 = 1.  # Copied Convenient normalization
-        # Resulting Connected Conditions
-
-
-        self.omega_p = 1
-
-
-
-        #self.Volume = np.prod(border)
-        #self.GridVolume = np.prod(gridNumbers)
-        #self.weight = 1 / (self.Nx * self.dx)
-        self.Np = PPC * self.Nx  # Total Particles
-
-        #sp["beta"] = sp["q"] * self.dt / (2 * sp["m"] * self.c) * self.weight
-        #sp["q"] *= self.weight
-        el={
-                "name": "e",
-                "q":-1,
-                "qDm": -1,
-                "charge": 0,
-                "NPpCell": PPC,
-                "Np":self.Np,
-                "xp":None,
-                "vp": None,
-            }
-        el["charge"] = self.omega_p ** 2 / (el["qDm"] * el["Np"] / self.Lx)
-        self.back_charge_density = -el["charge"] * self.Np / self.Lx
-        species=[el,]
-
-        super().__init__(dimension=1, stepssize=self.dx,border=(self.Lx,),gridNumbers=(self.Nx,),species=species )
-
-    def ShapeFunction(self,x_p,Np):
-        xn = (x_p / self.dx)
-        ix = np.floor(xn-0.5).astype(int)
-
-        wx = 1 - abs(xn - (ix + 0.5))
-
-        indexes = np.concatenate((ix, ix+1))
-        #ix = np.mod(ix, self.Nx)
-        NG=self.Nx
-        indexes[indexes < 0] += NG
-        indexes[indexes > NG - 1] -= NG
-        weights= np.concatenate((wx,1-wx))
-
-        p = np.arange(Np)
-        prow = np.concatenate((p, p))
-
-        mat = sparse.csc_matrix((weights, (prow, indexes)), shape=(Np, self.Nx))
-
-
-        return mat
-
-
-
-
 
 def normalized_initialize_two_stream1D(Lx, Np,VT=0.005,V0=0.05, XP1=0.01,mode=1,seed=42):
     """
@@ -146,6 +46,51 @@ def normalized_initialize_two_stream1D(Lx, Np,VT=0.005,V0=0.05, XP1=0.01,mode=1,
 
     return xp, vp
 
+
+
+
+L = 2.5 * np.pi
+NG = 320  # 80 #320  # Number of grid cells /gridpoints
+PPC = 20  # number of particles per cell
+
+DT = 0.05
+NT=0#500
+
+
+
+
+
+
+
+params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
+norm_inno = Solution_PIC( **params_class) #'Innocenti'
+own_solver= Semi_PIC_Solver(**params_class)
+params_init = dict(VT=0.0001, V0=0.5, XP1=1.0, mode=1,seed=42)
+xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
+own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper.copy(),vp_helper.copy()
+norm_inno.xp, norm_inno.vp= xp_helper.copy(), vp_helper.copy()
+
+
+# ======== SETTINGS ========
+stepview = 50   # show plots every 'stepview' steps
+# ==========================
+
+#own_solver.Moments()
+#norm_inno._deposit_CIC()
+#norm_inno.calc_E()
+#own_solver.Eg=norm_inno.Eg
+"""Plotting"""
+
+times_inno = []
+times_own = []
+# Historien
+energy_sol, kin_sol, mom_sol = [], [], []
+energy_ref, kin_ref, mom_ref = [], [], []
+
+rho_sol_hist, rho_ref_hist = [], []
+E_sol_hist,   E_ref_hist   = [], []
+J_sol_hist,   J_ref_hist   = [], []
+P_sol_hist,   P_ref_hist   = [], []
 
 """
 # Simulation parameters
@@ -190,54 +135,6 @@ d^2/d^2x^2+d^2/d^2y^2 phi
 
 
 """
-
-
-
-
-# Mode:
-# 1 = N-Step
-# 2 = Continous
-# 3 = Flipbook
-mode = 3
-
-
-L = 2.5 * np.pi
-NG = 320  # 80 #320  # Number of grid cells /gridpoints
-PPC = 20  # number of particles per cell
-
-DT = 0.05
-NT=500
-
-
-params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
-norm_inno = Solution_PIC( **params_class) #'Innocenti'
-own_solver= Init_SemiImplicit(**params_class)
-params_init = dict(VT=0.01, V0=0.5, XP1=1.0, mode=1,seed=42)
-xp_helper,vp_helper = normalized_initialize_two_stream1D(L, NG*PPC,  **params_init)
-own_solver.species[0]["xp"],own_solver.species[0]["vp"]=xp_helper.copy(),vp_helper.copy()
-norm_inno.xp, norm_inno.vp= xp_helper.copy(), vp_helper.copy()
-
-
-# ======== SETTINGS ========
-stepview = 50   # show plots every 'stepview' steps
-# ==========================
-
-#own_solver.Moments()
-#norm_inno._deposit_CIC()
-#norm_inno.calc_E()
-#own_solver.Eg=norm_inno.Eg
-"""Plotting"""
-
-times_inno = []
-times_own = []
-# Historien
-energy_sol, kin_sol, mom_sol = [], [], []
-energy_ref, kin_ref, mom_ref = [], [], []
-
-rho_sol_hist, rho_ref_hist = [], []
-E_sol_hist,   E_ref_hist   = [], []
-J_sol_hist,   J_ref_hist   = [], []
-P_sol_hist,   P_ref_hist   = [], []
 
 
 for n in range(NT):
@@ -363,6 +260,6 @@ for n in range(NT):
         axs[2,1].legend()
 
         plt.tight_layout()
-        plt.savefig("C:/Users/Gott/Desktop/Projekte/SemesterProject/PIC_Project/render/two-stream" + str(n) + ".png")
+        plt.savefig("./render/two-stream" + str(n) + ".png")
         plt.show()
         plt.close(fig)   # close so the loop continues without piling windows

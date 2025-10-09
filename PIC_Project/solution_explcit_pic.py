@@ -2,6 +2,9 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse import linalg
 
+from SolutionPIC_OLD.Normalized_Explicit import rho_back
+
+
 class TwoStreamPIC1D:
     """
     1D electrostatic PIC (normalized explicit) for the electron two‑stream case.
@@ -131,6 +134,7 @@ class TwoStreamPIC1D:
 
     # ---------------- main step ----------------
     def step(self):
+
         self._deposit_CIC()
         self.calc_E()
         self._interp_E_to_particles()
@@ -153,3 +157,4 @@ class TwoStreamPIC1D:
 
     def calcMomentum(self):
         return (self.charge / self.QM) * np.sum(self.vp)
+

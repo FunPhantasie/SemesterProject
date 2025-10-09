@@ -3,7 +3,8 @@ from scipy.sparse.linalg import gmres, LinearOperator
 
 from scipy.ndimage import gaussian_filter
 
-
+from scipy import sparse
+from scipy.sparse import linalg
 
 
 
@@ -11,18 +12,58 @@ from scipy.ndimage import gaussian_filter
 
 class IPIC_Solver():
 
-    def __init__(self, dimension,stepssize,border,gridNumbers,species):
-
-
-        self.dimension = dimension
-
-        #Stabilitay Evolution Params
+    def __init__(self,L=1,NG=1,PPC=20,DT=0.1,ES=True):
+        """Only Params"""
         self.theta = 0.8  # Implicit Parameter
-        self.combi = self.c * self.theta * self.dt #Used For Calc
+        Np= NG * PPC
+        # Parameter Conditions
+        self.Nx = NG  # gridpoints
+        self.dt = DT
+        self.Lx = L  # Border
+        self.dx = self.Lx / self.Nx
+        self.t = 0.0
+        self.xg = np.linspace(0, self.Lx - self.dx, self.Nx) + 0.5 * self.dx
+        # grid at cell centers
+        # Npp per Cell is Electons in Species
+        """--------Fields--------"""
+
+        self.totalN = self.Nx  # Total Number of Gridppoints (3 Could be Wrong)
+        self.NPpCell = PPC  # NPpCell
+
+        # Global Resulting  Conditions
+        self.Eg = np.zeros([self.Nx])  # E[0]
+        self.rhog = np.zeros([self.Nx])
+        self.Jg = np.zeros([self.Nx])  # Global
+        self.Pg = np.zeros([self.Nx])
+        self.rhog_hat = np.zeros([self.Nx])
+        self.Jg_hat = np.zeros([self.Nx])
+        #Fields
+        self.B = np.zeros([self.Nx])  # B[2]
+        self.E_theta = np.zeros([self.Nx])
+
+        """
+        All The Fields and Moments
+        """
+        # Physical constants
+        self.c = 1
+        self.pi = np.pi
+        self.epsilon_0 = 1.  # Copied Convenient normalization
+        self.omega_p = 1.  # Plasma Freq.
         # Handling Multiple Species
         # Initialize the Particles Global Positions and Velocities
+        # ---------------Species-------------------------------#
+
+        el = dict(name="e", q=-1, qDm=-1, Np=Np)
+        pr = dict(name= "p", q= 1, qDm= 1. / 1836., Np= Np, vp= np.zeros(Np))
+        el["charge"] = self.omega_p ** 2 / (el["qDm"] * el["Np"] / self.Lx)
+        sc_faktor = -pr["qDm"] / el["qDm"] * pr["Np"] / el["Np"] * el["Np"] / self.Lx*self.dx/el["Np"]
+        pr["charge"] = self.omega_p ** 2 / (pr["qDm"] * pr["Np"] / self.Lx)*sc_faktor
+
+        pr["xp"] = np.linspace(0, L, pr["Np"], endpoint=False)
+        species = [el, pr]
+
         for sp in species:
-            sp["rho"] = np.zeros([*gridNumbers])
+            sp["rho"] = np.zeros([self.Nx])
             sp["Fp"] = np.zeros([3, sp["Np"]])
             sp["Ep"] = np.zeros([3, sp["Np"]])
             sp["Bp"] = np.zeros([3, sp["Np"]])
@@ -32,32 +73,28 @@ class IPIC_Solver():
 
         self.species = species
         self.particle_mover=self.particle_mover1d
-
-    def MomentsGathering(self, xp, vp_x, Bp, Np, qDm, charge, c):
+        self.combi = self.c * self.theta * self.dt  # Used For Calc
+    def MomentsGathering(self, xp, vp, Np, qDm, charge):
         """
 
         :param xp:
-        :param vp_x:
+        :param vp:
         :param Bp: Zero Not Implemented
         :param Np:
         :param qDm:
         :param charge:
-        :param c:
         :return: rho,rho_hat,P, J,J_hat
         Same Design as in Solution PIC
         """
-        print("Rho Update")
-        rho=np.zeros(Np)
-        print(rho)
         mat_weights = self.ShapeFunction(xp, Np)
+
         rho = (charge / self.dx) * mat_weights.toarray().sum(axis=0)
-        print(rho)
-        print("Rho Update Complete")
-        mat_vel=mat_weights.multiply(vp_x.reshape(Np, 1))
+
+        mat_vel=mat_weights.multiply(vp.reshape(Np, 1))
         J=np.zeros(self.Nx)
         J += (charge / self.dx) * mat_vel.toarray().sum(axis=0)
 
-        mat_vel_2=mat_vel.multiply(vp_x.reshape(Np, 1))
+        mat_vel_2=mat_vel.multiply(vp.reshape(Np, 1))
 
         P = (charge / self.dx) * mat_vel_2.toarray().sum(axis=0)
         beta=qDm*self.dt/2
@@ -215,15 +252,8 @@ class IPIC_Solver():
         return xp+dt*vp_mid[0,...]
 
     def boundary(self,x):
-        if self.dimension==3:
-            x[0]=np.mod(x[0], self.Lx)
-            x[1]=np.mod(x[1], self.Ly)
-            x[2]=np.mod(x[2], self.Lz)
-            return x
-        elif self.dimension==1:
-            return  np.mod(x, self.Lx)
-        else:
-            raise NotImplementedError("Wrong Dim"+str(self.dimension))
+        return  np.mod(x, self.Lx)
+
 
 
 
@@ -260,23 +290,27 @@ class IPIC_Solver():
 
 
         for spp in self.species:
-            if spp["name"]=="el":
-                q_spp = spp["q"]
-                charge_spp = spp["charge"]
-                x_spp = spp["xp"]
-                v_spp = spp["vp"]
-                Np_ssp = spp["Np"]
-                Bp_ssp = spp["Bp"]
-                qDm_ssp = spp["qDm"]
-                spp["rho"], spp["rho_hat"], spp["P"], spp["J"], spp["J_hat"] = self.MomentsGathering(x_spp, v_spp,Bp=Bp_ssp, Np=Np_ssp,qDm=qDm_ssp,charge=charge_spp,
-                                                                                                     c=c, )
-                # rho,rho_hat,P, J,J_hat
-            if
+            x_spp = spp["xp"]
+            v_spp = spp["vp"]
+            q_spp = spp["q"]
+            Bp_ssp = spp["Bp"]
+            Np_ssp = spp["Np"]
+            qDm_ssp = spp["qDm"]
+            charge_spp = spp["charge"]
+            name_spp = spp["name"]
+
+            params_M = dict(xp=x_spp,vp=v_spp, Np=Np_ssp,qDm=qDm_ssp,charge=charge_spp)
+            spp["rho"], spp["rho_hat"], spp["P"], spp["J"], spp["J_hat"] = self.MomentsGathering(**params_M )
+            self.rhog += spp["rho"]
+            self.rhog_hat += spp["rho_hat"]
+            self.Pg += spp["P"]
+            self.Jg += spp["J"]
+            self.Jg_hat += spp["J_hat"]
 
 
-        #self.rhog += spp["rho"]
-        #self.rhog +=  self.back_charge_density
-        #self.rhog_hat+=  self.back_charge_density
+
+
+
         """------------------------Moments Finished------------------------------"""
     def step(self):
 
@@ -296,35 +330,53 @@ class IPIC_Solver():
 
         # Current Looping for Updated Positions
 
-        for spp in self.species:
-            beta_ssp = spp["qDm"] * self.dt / 2
-            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"], spp["vp"], spp["Np"], beta=beta_ssp, c=c)
+        spp=self.species[0]
+        beta_ssp = spp["qDm"] * self.dt / 2
+        spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"], spp["vp"], spp["Np"], beta=beta_ssp, c=c)
         count = 0
         for _ in range(5):
             total_error = 0.0
-            for spp in self.species:
-                xp_old = spp["xp_iter"].copy()
-                beta_ssp = spp["qDm"] * self.dt / 2
-                spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"], spp["Np"],
+            xp_old = spp["xp_iter"].copy()
+            beta_ssp = spp["qDm"] * self.dt / 2
+            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"], spp["Np"],
                                                              beta=beta_ssp, c=c)
-                total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
+            total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
             if total_error < 1e-6:
                 # print("Iteration stopped after:" + str(count))
                 break
 
             count += 1
 
-        for spp in self.species:
-            spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
-            # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
-            spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
-            spp["xp"] = self.boundary(spp["xp"])
 
-            ## For Debugging not needed Elsewhere
-            # spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
+        spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
+        # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
+        spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
+        spp["xp"] = self.boundary(spp["xp"])
+
+        ## For Debugging not needed Elsewhere
+        # spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)
 
         self.t += self.dt
+    def ShapeFunction(self,x_p,Np):
+        xn = (x_p / self.dx)
+        ix = np.floor(xn-0.5).astype(int)
 
+        wx = 1 - abs(xn - (ix + 0.5))
+
+        indexes = np.concatenate((ix, ix+1))
+        #ix = np.mod(ix, self.Nx)
+        NG=self.Nx
+        indexes[indexes < 0] += NG
+        indexes[indexes > NG - 1] -= NG
+        weights= np.concatenate((wx,1-wx))
+
+        p = np.arange(Np)
+        prow = np.concatenate((p, p))
+
+        mat = sparse.csc_matrix((weights, (prow, indexes)), shape=(Np, self.Nx))
+
+
+        return mat
 
 
 
