@@ -2,7 +2,7 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse import linalg
 
-from SolutionPIC_OLD.Normalized_Explicit import rho_back
+
 
 
 class TwoStreamPIC1D:
@@ -36,6 +36,7 @@ class TwoStreamPIC1D:
         self.Eg = np.zeros(self.NG)
         self.E  = self.Eg.copy()
         self.charge = self.WP ** 2 / (self.QM * self.Np / self.L)
+
         self.rho_back = -self.charge * self.Np / self.L
 
         self.xp = None
@@ -158,3 +159,14 @@ class TwoStreamPIC1D:
     def calcMomentum(self):
         return (self.charge / self.QM) * np.sum(self.vp)
 
+
+"""
+L = 2.5 * np.pi
+NG = 320  # 80 #320  # Number of grid cells /gridpoints
+PPC = 20  # number of particles per cell
+
+DT = 0.05
+NT=0#500
+params_class=dict(L=L, NG=NG, PPC=PPC, DT=DT,ES=True)
+a = TwoStreamPIC1D( **params_class) #'Innocenti'
+"""

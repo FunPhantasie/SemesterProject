@@ -56,10 +56,12 @@ class IPIC_Solver():
         el = dict(name="e", q=-1, qDm=-1, Np=Np)
         pr = dict(name= "p", q= 1, qDm= 1. / 1836., Np= Np, vp= np.zeros(Np))
         el["charge"] = self.omega_p ** 2 / (el["qDm"] * el["Np"] / self.Lx)
-        sc_faktor = -pr["qDm"] / el["qDm"] * pr["Np"] / el["Np"] * el["Np"] / self.Lx*self.dx/el["Np"]
-        pr["charge"] = self.omega_p ** 2 / (pr["qDm"] * pr["Np"] / self.Lx)*sc_faktor
+        sc_faktor = - (pr["qDm"] * pr["Np"]) / (el["qDm"] * el["Np"])
+        pr["charge"] =self.omega_p ** 2 / (pr["qDm"] * pr["Np"] / self.Lx) * sc_faktor
 
         pr["xp"] = np.linspace(0, L, pr["Np"], endpoint=False)
+        pr["xp"] += self.dx
+        pr["xp"] = np.mod(pr["xp"], self.Lx)
         species = [el, pr]
 
         for sp in species:
@@ -146,7 +148,12 @@ class IPIC_Solver():
 
 
 
-    def matrix_rhs_equation(self, E, B, J_hat, rho_hat,combi,c):
+    def matrix_rhs_equation(self, E, B, species,combi,c):
+        rho_hat=0
+        J_hat=0
+        for i in species:
+            rho_hat+=i["rho_hat"]
+            J_hat+=i["J_hat"]
         return E + combi * ( - 4 * self.pi / c * J_hat) - combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
         #return E + combi * (self.curl(B) - 4 * self.pi / c * J_hat) - combi ** 2 * 4 * self.pi * self.gradient(rho_hat)
 
@@ -176,7 +183,7 @@ class IPIC_Solver():
 
 
 
-    def A_operator(self, E_calc,rho,combi,beta):
+    def A_operator(self, E_calc,species,combi):
         """
         :param E_calc: The E_theta to be solved for
         :param rho:
@@ -185,12 +192,16 @@ class IPIC_Solver():
         :return:
         """
         R_E = E_calc
-
-        prefaktor =  4 * self.pi * self.theta * self.dt * beta
+        mu_E_calc=0
+        for sp in species:
+            qDm_s=sp["qDm"]
+            beta_s = qDm_s * self.dt / 2
+            prefaktor =  4 * self.pi * self.theta * self.dt * beta_s
+            mu_E_calc += sp["rho"] * E_calc * prefaktor
         #-----------Variante 1 -- E Ignoriert elementweise mult--------------#
         #mu_E_calc =  np.multiply(E_calc,rhos)*prefaktor
         #E
-        mu_E_calc = rho * E_calc * prefaktor
+
         #P
 
 
@@ -202,7 +213,9 @@ class IPIC_Solver():
         Av = E_calc + mu_E_calc - combi ** 2 * (self.laplacian(E_calc) + self.laplacian(mu_E_calc))
         return Av
 
-    def solveMatrixEquation(self,rhs,prevEtheta,rho,combi,charge,qDm):
+    def solveMatrixEquation(self,rhs,prevEtheta,combi,species):
+
+
         """
             Grid-based scalar field solve:
             Solves A(E) = rhs using GMRES, where A is defined by A_operator.
@@ -223,11 +236,11 @@ class IPIC_Solver():
                 Charge-to-mass ratio sign (-1 for electrons, +1 for ions).
         """
 
-        beta = qDm * self.dt / 2
+
         n = self.totalN
 
         def matvec(x):
-            return self.A_operator(x, rho=rho, combi=combi,  beta=beta)
+            return self.A_operator(x, species=species, combi=combi,  )
 
         A = LinearOperator((n, n), matvec=matvec, dtype=rhs.dtype)
 
@@ -319,10 +332,9 @@ class IPIC_Solver():
         self.Moments()
         print("Moments Gathering")
         # Matrix
-        rhs = self.matrix_rhs_equation(self.Eg, self.B, self.Jg_hat, self.rhog_hat, combi=combi, c=c)  # TO Vector
-        charge_spp = self.species[0]["charge"]
-        q_spp = self.species[0]["qDm"]
-        self.E_theta = self.solveMatrixEquation(rhs, self.Eg, self.rhog, combi=combi, charge=charge_spp, qDm=q_spp)
+        rhs = self.matrix_rhs_equation(self.Eg, self.B,species=self.species, combi=combi, c=c)  # TO Vector
+
+        self.E_theta = self.solveMatrixEquation(rhs, self.Eg, combi=combi, species=self.species)
 
         # Update Fields
         self.Eg = (self.E_theta - (1 - self.theta) * self.Eg) / self.theta  # For all Theta
@@ -330,17 +342,17 @@ class IPIC_Solver():
 
         # Current Looping for Updated Positions
 
-        spp=self.species[0]
-        beta_ssp = spp["qDm"] * self.dt / 2
-        spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp"], spp["vp"], spp["Np"], beta=beta_ssp, c=c)
+        electrons=self.species[0]
+        beta_ssp = electrons["qDm"] * self.dt / 2
+        electrons["xp_iter"], electrons["vp_iter"] = self.Looper(electrons["xp"], electrons["vp"], electrons["Np"], beta=beta_ssp, c=c)
         count = 0
         for _ in range(5):
             total_error = 0.0
-            xp_old = spp["xp_iter"].copy()
-            beta_ssp = spp["qDm"] * self.dt / 2
-            spp["xp_iter"], spp["vp_iter"] = self.Looper(spp["xp_iter"], spp["vp_iter"], spp["Np"],
+            xp_old = electrons["xp_iter"].copy()
+            beta_ssp = electrons["qDm"] * self.dt / 2
+            electrons["xp_iter"], electrons["vp_iter"] = self.Looper(electrons["xp_iter"], electrons["vp_iter"], electrons["Np"],
                                                              beta=beta_ssp, c=c)
-            total_error += np.linalg.norm(spp["xp_iter"] - xp_old)
+            total_error += np.linalg.norm(electrons["xp_iter"] - xp_old)
             if total_error < 1e-6:
                 # print("Iteration stopped after:" + str(count))
                 break
@@ -348,10 +360,10 @@ class IPIC_Solver():
             count += 1
 
 
-        spp["vp"] = 2 * spp["vp_iter"] - spp["vp"]
+        electrons["vp"] = 2 * electrons["vp_iter"] - electrons["vp"]
         # spp["vp"]=(spp["vp_iter"]-(1-self.theta)*spp["vp"])/self.theta #For all Thetas
-        spp["xp"] = self.particle_mover(spp["vp_iter"], spp["xp"], self.dt)
-        spp["xp"] = self.boundary(spp["xp"])
+        electrons["xp"] = self.particle_mover(electrons["vp_iter"], electrons["xp"], self.dt)
+        electrons["xp"] = self.boundary(electrons["xp"])
 
         ## For Debugging not needed Elsewhere
         # spp["rho"] = self.deposit_charge(spp["xp"], spp["Np"], q_spp, af)

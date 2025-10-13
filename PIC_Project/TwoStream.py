@@ -1,6 +1,6 @@
 import numpy as np
-
-
+import os
+from collections import deque
 from Semi_Implicit import IPIC_Solver as Semi_PIC_Solver
 from solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
 
@@ -8,7 +8,7 @@ from solution_explcit_pic import TwoStreamPIC1D as Solution_PIC
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-
+#mpl.use('TkAgg')
 def normalized_initialize_two_stream1D(Lx, Np,VT=0.005,V0=0.05, XP1=0.01,mode=1,seed=42):
     """
     Initialize particle positions and velocities for a two-stream instability.
@@ -51,10 +51,10 @@ def normalized_initialize_two_stream1D(Lx, Np,VT=0.005,V0=0.05, XP1=0.01,mode=1,
 
 L = 2.5 * np.pi
 NG = 320  # 80 #320  # Number of grid cells /gridpoints
-PPC = 20  # number of particles per cell
+PPC = 40  # number of particles per cell
 
-DT = 0.05
-NT=0#500
+DT = 0.1
+NT=5000
 
 
 
@@ -92,49 +92,20 @@ E_sol_hist,   E_ref_hist   = [], []
 J_sol_hist,   J_ref_hist   = [], []
 P_sol_hist,   P_ref_hist   = [], []
 
-"""
-# Simulation parameters
-# original parameters -- long!!!
-# L = 20*np.pi #20*np.pi # Domain size
-# DT = 0.005 # Time step
-# NT = 50000  # Number of time steps
-# doPlots = True
-# NG = 320  # Number of grid cells
-# N = NG * 20 # Number of particles
-#  endoriginal parameters -- long!!!
-
-# this is fast, but does not conserve energy in the end
-# change parameters for better energy conservation
-L = 2.5 * np.pi  # 20*np.pi #20*np.pi # Domain size
-DT = 0.005 * 10  # 0.005 # Time step
-NT = 500  # 50000  # Number of time steps
-doPlots = True
-NG = 40  # 80 #320  # Number of grid cells
-PPC = 20  # number of particles per cell
-N = NG * PPC  # total number of particles
-"""
 
 
+# --- config for figure/window handling + saving ---
+save_dir = "./render"
+basename = "two-stream"
+max_open_figures = 10
+os.makedirs(save_dir, exist_ok=True)
 
-
-"""
-Possion Laplace Ableitung
-Auxilliary vectors / Hilfs-
-p = np.concatenate([np.arange(Np), np.arange(Np)])  
- Some indices up to N 0 bis np-1 und dann nochmal
-Poisson is a diagonal matrix with -2 on the diag; -1 above and below used for \nabla^2
-Poisson = sparse.spdiags(([1, -2, 1] * np.ones((1, NG - 1), dtype=int).T).T, [-1, 0, 1], NG - 1, NG - 1)
-diags=[1, -2, 1] * np.ones((1, NG - 1) Für Jede Gridzelle-1 wird die Ableitung gebildet
-
-spdiags(data, diags, m, n)
-Poisson = Poisson.tocsc()
-Faster code
-
-d^2/d^2x^2+d^2/d^2y^2 phi
-1D bedeuted f(x+h)+f(x-h)-2f(x)
-
-
-"""
+# track the last open figures so older ones can be closed
+_open_figs = deque(maxlen=max_open_figures)
+for f in os.listdir(save_dir):
+    path = os.path.join(save_dir, f)
+    if os.path.isfile(path) or os.path.islink(path):
+        os.unlink(path)  # delete file or symlink
 
 
 for n in range(NT):
@@ -173,7 +144,7 @@ for n in range(NT):
 
 
     # ---- LIVE VIEW every 'stepview' steps ----
-    if (n + 1) % stepview == 0  or True:
+    if (n + 1) % stepview == 0 or n==0:
         # --------- PLOTTEN ---------
         fig, axs = plt.subplots(3, 2, figsize=(12, 13))
         """
@@ -260,6 +231,66 @@ for n in range(NT):
         axs[2,1].legend()
 
         plt.tight_layout()
-        plt.savefig("./render/two-stream" + str(n) + ".png")
-        plt.show()
-        plt.close(fig)   # close so the loop continues without piling windows
+
+        # --- save: delete existing file first ---
+        png_path = os.path.join(save_dir, f"{basename}{n}.png")
+        if os.path.exists(png_path):
+            os.remove(png_path)
+        fig.savefig(png_path)
+
+        # --- show non-blocking and keep only last N windows open ---
+        plt.show(block=False)
+        _open_figs.append(fig)
+        # if we exceeded max, the deque drops the oldest reference; close any figs not in deque
+        # (simple approach: when length exceeds, close all except the last max_open_figures)
+        if len(_open_figs) > max_open_figures:
+            # shouldn't happen with deque(maxlen=...), but in case of backend quirks:
+            while len(_open_figs) > max_open_figures:
+                old = _open_figs.popleft()
+                plt.close(old)
+        # proactively close figures not currently tracked (optional safety)
+        # plt.pause can help UI refresh without blocking
+        plt.pause(0.001)
+"""
+# Simulation parameters
+# original parameters -- long!!!
+# L = 20*np.pi #20*np.pi # Domain size
+# DT = 0.005 # Time step
+# NT = 50000  # Number of time steps
+# doPlots = True
+# NG = 320  # Number of grid cells
+# N = NG * 20 # Number of particles
+#  endoriginal parameters -- long!!!
+
+# this is fast, but does not conserve energy in the end
+# change parameters for better energy conservation
+L = 2.5 * np.pi  # 20*np.pi #20*np.pi # Domain size
+DT = 0.005 * 10  # 0.005 # Time step
+NT = 500  # 50000  # Number of time steps
+doPlots = True
+NG = 40  # 80 #320  # Number of grid cells
+PPC = 20  # number of particles per cell
+N = NG * PPC  # total number of particles
+"""
+
+
+
+
+"""
+Possion Laplace Ableitung
+Auxilliary vectors / Hilfs-
+p = np.concatenate([np.arange(Np), np.arange(Np)])  
+ Some indices up to N 0 bis np-1 und dann nochmal
+Poisson is a diagonal matrix with -2 on the diag; -1 above and below used for \nabla^2
+Poisson = sparse.spdiags(([1, -2, 1] * np.ones((1, NG - 1), dtype=int).T).T, [-1, 0, 1], NG - 1, NG - 1)
+diags=[1, -2, 1] * np.ones((1, NG - 1) Für Jede Gridzelle-1 wird die Ableitung gebildet
+
+spdiags(data, diags, m, n)
+Poisson = Poisson.tocsc()
+Faster code
+
+d^2/d^2x^2+d^2/d^2y^2 phi
+1D bedeuted f(x+h)+f(x-h)-2f(x)
+
+
+"""

@@ -12,13 +12,18 @@ class PIC1D:
         charge_el = self.WP ** 2 / (self.QM * self.Np / self.Lx)
         self.rho_back = -charge_el * self.Np / self.Lx
         self.omega_p=1
+
         el = dict(name="e", q=-1, qDm=-1, Np=Np)
         pr = dict(name="p", q=1, qDm=1. / 1836., Np=Np, vp=np.zeros(Np))
         el["charge"] = self.omega_p ** 2 / (el["qDm"] * el["Np"] / self.Lx)
-        sc_faktor = -pr["qDm"] / el["qDm"] * pr["Np"] / el["Np"] * el["Np"] / self.Lx * self.dx / el["Np"]
+        sc_faktor = - (pr["qDm"]*pr["Np"]) /( el["qDm"] *el["Np"])
         self.charge = self.omega_p ** 2 / (pr["qDm"] * pr["Np"] / self.Lx) * sc_faktor
-        self.xp = np.linspace(0, Lx, pr["Np"], endpoint=False)
-        species = [el, pr]
+        self.xp = np.linspace(0, Lx, Np, endpoint=False)
+        self.xp+=self.dx
+        self.xp = np.mod(self.xp, self.Lx)
+        #self.charge = self.rho_back * self.Lx / self.Np
+
+        #species = [el, pr]
 
     def _deposit_CIC(self):
         NG = self.Nx
@@ -41,9 +46,9 @@ class PIC1D:
         mat = sparse.csc_matrix((fraz, (prow, g)), shape=(Np, NG))
 
 
-        rho_e = self.charge / self.dx * mat.toarray().sum(axis=0)
+        rho_p = self.charge / self.dx * mat.toarray().sum(axis=0)
 
-        print(rho_e)
+        print(rho_p)
         print(self.rho_back)
 
 
